@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 590" width="1000" height="590" role="img" aria-labelledby="title desc">
+  <title id="title">SEAR overview</title>
+  <desc id="desc">An untrusted improvement agent proposes updates. A tiered verifier admits, restricts or rejects each candidate.
+    Admitted policies run under runtime assurance. Signed contracts, the safety oracle, frozen benchmark and hash-chained evidence ledger sit outside the agent's reach.</desc>
+  <style>
+    :root {
+      --bg: #fbfcfd; --ink: #1f2328; --muted: #57606a; --line: #8c959f;
+      --agent-f: #fff1f0; --agent-s: #e5484d; --card: #ffffff;
+      --ver-f: #f4f0ff; --ver-s: #7c3aed; --chip: #ebe4ff;
+      --dep-f: #eef5ff; --dep-s: #2f6fde;
+      --auth-f: #ecf8f1; --auth-s: #1f9d55;
+      --ok: #1f9d55; --warn: #c27c0e; --bad: #d1242f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117; --ink: #e6edf3; --muted: #9da7b3; --line: #6e7681;
+        --agent-f: #2a1215; --agent-s: #f2555a; --card: #161b22;
+        --ver-f: #1e1633; --ver-s: #a371f7; --chip: #2b2149;
+        --dep-f: #0f1d33; --dep-s: #58a6ff;
+        --auth-f: #0f2419; --auth-s: #3fb950;
+        --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      }
+    }
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--ink); }
+    .title { font-size: 22px; font-weight: 700; letter-spacing: .3px; }
+    .subtitle { font-size: 13px; fill: var(--muted); }
+    .zone { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+    .h { font-size: 14px; font-weight: 650; }
+    .s { font-size: 11.5px; fill: var(--muted); }
+    .chip { font-size: 11.5px; }
+    .lbl { font-size: 11px; fill: var(--muted); font-style: italic; }
+    .pill { font-size: 12.5px; font-weight: 700; fill: #ffffff; letter-spacing: .8px; }
+    .card { fill: var(--card); stroke-width: 1.4; }
+    .arrow { stroke: var(--line); stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+    .dash { stroke-dasharray: 6 5; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.8" flood-opacity=".12"/>
+    </filter>
+  </defs>
+
+  <rect width="1000" height="590" rx="18" fill="var(--bg)"/>
+  <text x="30" y="40" class="title">SEAR · Safety-Preserving Evolution</text>
+  <text x="30" y="60" class="subtitle">capability may improve every generation — but only updates with independently checkable evidence are deployed</text>
+
+  <!-- feedback channel (top) -->
+  <path class="arrow dash" d="M 820 96 V 82 H 135 V 118"/>
+  <text x="478" y="77" class="lbl" text-anchor="middle">permitted observations · task outcomes &amp; logs</text>
+
+  <!-- ===================== UNTRUSTED AGENT ZONE ===================== -->
+  <rect x="20" y="96" width="232" height="300" rx="14" fill="var(--agent-f)" stroke="var(--agent-s)" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="36" y="114" class="zone" fill="var(--agent-s)" style="fill:var(--agent-s)">UNTRUSTED · WRITABLE zₖ</text>
+  <g filter="url(#shadow)">
+    <rect x="36" y="126" width="200" height="62" rx="10" class="card" stroke="var(--agent-s)"/>
+    <text x="136" y="152" class="h" text-anchor="middle">Improvement agent</text>
+    <text x="136" y="171" class="s" text-anchor="middle">coding agent · LLM · RL</text>
+    <rect x="36" y="204" width="200" height="40" rx="9" class="card" stroke="var(--agent-s)" stroke-opacity=".55"/>
+    <text x="136" y="229" class="chip" text-anchor="middle">θ policy  ·  m memory</text>
+    <rect x="36" y="252" width="200" height="40" rx="9" class="card" stroke="var(--agent-s)" stroke-opacity=".55"/>
+    <text x="136" y="277" class="chip" text-anchor="middle">e task evaluator  ·  r reward</text>
+    <rect x="36" y="300" width="200" height="40" rx="9" class="card" stroke="var(--agent-s)" stroke-opacity=".55"/>
+    <text x="136" y="325" class="chip" text-anchor="middle">τ tools  ·  d data  ·  P provenance</text>
+  </g>
+  <text x="136" y="373" class="s" text-anchor="middle">may optimize — and even rewrite</text>
+  <text x="136" y="387" class="s" text-anchor="middle">its own evaluator</text>
+
+  <!-- agent -> candidate -->
+  <path class="arrow" d="M 236 157 H 284"/>
+  <text x="260" y="149" class="lbl" text-anchor="middle">Δₖ</text>
+
+  <!-- ===================== CANDIDATE + VERIFIER ===================== -->
+  <g filter="url(#shadow)">
+    <rect x="288" y="118" width="196" height="78" rx="10" class="card" stroke="var(--line)"/>
+    <text x="386" y="142" class="h" text-anchor="middle">Candidate artifact</text>
+    <text x="386" y="161" class="chip" text-anchor="middle">zₖ₊₁ = U(zₖ, Δₖ)</text>
+    <text x="386" y="180" class="s" text-anchor="middle">diff · lineage · impact summary</text>
+  </g>
+  <path class="arrow" d="M 386 196 V 212"/>
+
+  <rect x="288" y="214" width="196" height="182" rx="12" fill="var(--ver-f)" stroke="var(--ver-s)" stroke-width="1.6"/>
+  <text x="386" y="236" class="h" text-anchor="middle">Tiered verifier · WP2</text>
+  <g>
+    <rect x="300" y="246" width="172" height="24" rx="12" fill="var(--chip)"/>
+    <text x="386" y="262" class="chip" text-anchor="middle">0 · integrity · perms · paths</text>
+    <rect x="300" y="275" width="172" height="24" rx="12" fill="var(--chip)"/>
+    <text x="386" y="291" class="chip" text-anchor="middle">1 · replay regression</text>
+    <rect x="300" y="304" width="172" height="24" rx="12" fill="var(--chip)"/>
+    <text x="386" y="320" class="chip" text-anchor="middle">2 · randomized simulation</text>
+    <rect x="300" y="333" width="172" height="24" rx="12" fill="var(--chip)"/>
+    <text x="386" y="349" class="chip" text-anchor="middle">3 · barrier certificate</text>
+    <rect x="300" y="362" width="172" height="24" rx="12" fill="var(--chip)"/>
+    <text x="386" y="378" class="chip" text-anchor="middle">4 · statistical bound (CP)</text>
+  </g>
+
+  <!-- decisions -->
+  <path class="arrow" d="M 484 252 H 518"/>
+  <path class="arrow" d="M 484 305 H 518"/>
+  <path class="arrow" d="M 484 358 H 518"/>
+  <rect x="522" y="236" width="112" height="32" rx="16" fill="var(--ok)"/>
+  <text x="578" y="257" class="pill" text-anchor="middle">ADMIT</text>
+  <rect x="522" y="289" width="112" height="32" rx="16" fill="var(--warn)"/>
+  <text x="578" y="310" class="pill" text-anchor="middle">RESTRICT</text>
+  <rect x="522" y="342" width="112" height="32" rx="16" fill="var(--bad)"/>
+  <text x="578" y="363" class="pill" text-anchor="middle">REJECT</text>
+  <text x="578" y="226" class="lbl" text-anchor="middle">UNKNOWN ≠ safe</text>
+
+  <!-- admit -> deploy -->
+  <path class="arrow" d="M 634 252 H 664"/>
+  <text x="649" y="244" class="lbl" text-anchor="middle">deploy</text>
+
+  <!-- ===================== DEPLOYMENT / RUNTIME ASSURANCE ===================== -->
+  <rect x="668" y="96" width="312" height="300" rx="14" fill="var(--dep-f)" stroke="var(--dep-s)" stroke-width="1.6"/>
+  <text x="684" y="114" class="zone" style="fill:var(--dep-s)">RUNTIME ASSURANCE · WP3</text>
+  <g filter="url(#shadow)">
+    <rect x="684" y="128" width="124" height="58" rx="10" class="card" stroke="var(--dep-s)"/>
+    <text x="746" y="152" class="h" text-anchor="middle">Policy πₖ</text>
+    <text x="746" y="171" class="s" text-anchor="middle">proposes u_agent</text>
+    <rect x="826" y="128" width="140" height="58" rx="10" class="card" stroke="var(--dep-s)"/>
+    <text x="896" y="152" class="h" text-anchor="middle">CBF-QP filter</text>
+    <text x="896" y="171" class="s" text-anchor="middle">min ‖u − u_agent‖</text>
+    <rect x="684" y="210" width="124" height="58" rx="10" class="card" stroke="var(--dep-s)"/>
+    <text x="746" y="234" class="h" text-anchor="middle">Safe fallback</text>
+    <text x="746" y="253" class="s" text-anchor="middle">brake · retract · stop</text>
+    <rect x="826" y="210" width="140" height="58" rx="10" class="card" stroke="var(--dep-s)"/>
+    <text x="896" y="234" class="h" text-anchor="middle">Runtime monitor</text>
+    <text x="896" y="253" class="s" text-anchor="middle">human · fault · domain</text>
+    <rect x="684" y="300" width="282" height="64" rx="12" class="card" stroke="var(--dep-s)" stroke-width="2"/>
+    <text x="825" y="327" class="h" text-anchor="middle">Robot / simulator</text>
+    <text x="825" y="347" class="s" text-anchor="middle">contact force · tool slip · clearance · speed</text>
+  </g>
+  <path class="arrow" d="M 808 157 H 822"/>
+  <path class="arrow" d="M 826 239 H 812"/>
+  <text x="817" y="203" class="lbl" text-anchor="middle">trigger</text>
+  <path class="arrow" d="M 966 157 H 974 V 332 H 970"/>
+  <path class="arrow" d="M 746 268 V 296"/>
+  <path class="arrow dash" d="M 896 300 V 272"/>
+  <text x="928" y="290" class="lbl" text-anchor="middle">state</text>
+
+  <!-- ===================== SAFETY AUTHORITY BAND ===================== -->
+  <rect x="20" y="428" width="960" height="146" rx="14" fill="var(--auth-f)" stroke="var(--auth-s)" stroke-width="1.6"/>
+  <text x="36" y="562" class="zone" style="fill:var(--auth-s)">SAFETY AUTHORITY · IMMUTABLE · OUTSIDE THE AGENT'S WORKSPACE · WP1 / WP4</text>
+  <g filter="url(#shadow)">
+    <rect x="36" y="460" width="216" height="84" rx="10" class="card" stroke="var(--auth-s)"/>
+    <text x="144" y="486" class="h" text-anchor="middle">Signed safety contract</text>
+    <text x="144" y="506" class="s" text-anchor="middle">physical · temporal · operational</text>
+    <text x="144" y="524" class="s" text-anchor="middle">HMAC-signed · read-only</text>
+    <rect x="270" y="460" width="216" height="84" rx="10" class="card" stroke="var(--auth-s)"/>
+    <text x="378" y="486" class="h" text-anchor="middle">Frozen benchmark</text>
+    <text x="378" y="506" class="s" text-anchor="middle">in-dist · held-out · OOD</text>
+    <text x="378" y="524" class="s" text-anchor="middle">adversarial · digest-pinned</text>
+    <rect x="504" y="460" width="216" height="84" rx="10" class="card" stroke="var(--auth-s)"/>
+    <text x="612" y="486" class="h" text-anchor="middle">Evidence ledger</text>
+    <text x="612" y="506" class="s" text-anchor="middle">hash-chained · append-only</text>
+    <text x="612" y="524" class="s" text-anchor="middle">every admit · reject · rollback</text>
+    <rect x="738" y="460" width="226" height="84" rx="10" class="card" stroke="var(--auth-s)"/>
+    <text x="851" y="486" class="h" text-anchor="middle">Independent safety oracle</text>
+    <text x="851" y="506" class="s" text-anchor="middle">scores every trajectory</text>
+    <text x="851" y="524" class="s" text-anchor="middle">PASS · FAIL · UNKNOWN</text>
+  </g>
+  <!-- band connections -->
+  <path class="arrow" d="M 378 456 V 400"/>
+  <text x="372" y="418" class="lbl" text-anchor="end">frozen tests</text>
+  <path class="arrow" d="M 578 374 V 456"/>
+  <text x="584" y="418" class="lbl">every decision</text>
+  <path class="arrow" d="M 520 456 V 412 H 496 V 392 H 488"/>
+  <text x="514" y="436" class="lbl" text-anchor="end">retrieval</text>
+  <path class="arrow" d="M 690 456 V 412 H 704 V 400"/>
+  <text x="684" y="436" class="lbl" text-anchor="end">rollback</text>
+  <path class="arrow" d="M 851 364 V 456"/>
+  <text x="858" y="418" class="lbl">trajectories</text>
+</svg>
