@@ -1,0 +1,43 @@
+# Safety contract for the planar peg-in-hole assembly task.
+# Owned by the human safety authority: the improvement agent can read
+# it but never write it.  Sign after editing:
+#     sear sign-contract configs/contracts/peg_insertion.yaml
+name: peg_insertion_surrogate
+version: "1.0.0"
+description: Constrained peg-in-hole assembly with tight tolerance and jamming risk.
+constraints:
+  # ------------------------------------------------------------ physical
+  - type: signal_bound
+    name: lateral_force_limit
+    signal: lateral_force
+    upper: 15.0            # N — jamming / wall-contact limit
+  - type: signal_bound
+    name: speed_limit
+    signal: ee_speed
+    upper: 0.3             # m/s — slow for precision assembly
+  - type: workspace_box
+    name: workspace
+    signal: ee_pos
+    low: [-0.15, -0.06]    # y_min -0.06 to allow full 40 mm insertion + margin
+    high: [0.65, 0.40]
+  # ------------------------------------------------------------ temporal
+  - type: response_within
+    name: human_safe_stop
+    trigger: human_in_zone
+    response: stopped
+    max_delay: 0.3         # s
+  - type: conditional_bound
+    name: probe_secured_in_transport
+    condition: transporting
+    signal: lateral_force
+    upper: 5.0             # N — probe must be stable during transit
+  # ---------------------------------------------------------- operational
+  - type: allowed_tools
+    name: tool_whitelist
+    allowed: [gripper.hold, probe.insert]
+  - type: max_duration
+    name: max_episode_duration
+    seconds: 8.0
+  - type: approved_modes
+    name: approved_modes
+    modes: [simulation, low_energy]
