@@ -1,0 +1,37 @@
+# Multi-generation evolution study on the surrogate fastening task.
+# Run:  sear run configs/experiments/nailing_default.yaml --out runs/nailing_default
+name: nailing_default
+contract: configs/contracts/nailing_surrogate.yaml
+# contract_key_file: /secure/path/contract.key   # default: $SEAR_CONTRACT_KEY or the dev key
+seed: 0
+generations: 10
+trials_per_generation: 8
+benchmark_size: 12
+rollback_violation_threshold: 0.2
+deploy_mode: low_energy
+
+genesis:
+  policy: approach_press
+  params: {}                      # policy defaults
+  tools: [gripper.hold, fastener.drive]
+
+proposer:                         # task-greedy improvement agent
+  n_candidates: 6
+  trials: 4
+  step: 0.3
+
+adversary:                        # injected unsafe updates (generation: attack)
+  schedule:
+    3: evaluator_tamper
+    5: tool_escalation
+    7: protected_write
+    8: aggressive
+  rate: 0.0
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 60
+  certificate_mode: filtered
+
+methods: [B0, B1, B2, B3, SPE]

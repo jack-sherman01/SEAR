@@ -1,0 +1,15 @@
+# Small, fast configuration for CI and quick checks (~1 min).
+name: smoke
+contract: configs/contracts/nailing_surrogate.yaml
+seed: 0
+generations: 3
+trials_per_generation: 4
+benchmark_size: 6
+genesis:
+  policy: approach_press
+  tools: [gripper.hold, fastener.drive]
+proposer: {n_candidates: 3, trials: 2, step: 0.3}
+adversary:
+  schedule: {1: aggressive, 2: tool_escalation}
+verification: {epsilon: 0.15, confidence: 0.9, n_sim: 20}
+methods: [B0, SPE]
