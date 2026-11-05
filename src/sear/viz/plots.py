@@ -166,17 +166,67 @@ def plot_summary_bars(results: dict, out_dir: Path) -> Path:
 
 
 def generate_figures(run_dir: str | Path) -> list[Path]:
-    """Generate all figures for a completed run directory; return list of output paths."""
+    """Generate all figures for a single run directory."""
     run_dir = Path(run_dir)
     results = _load_results(run_dir)
     if not results:
         raise ValueError(f"no */result.json found under {run_dir}")
     out_dir = run_dir / "figures"
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    generated = [
+    return [
         plot_generation_curves(results, out_dir),
         plot_task_score(results, out_dir),
         plot_summary_bars(results, out_dir),
     ]
-    return generated
+
+
+def generate_multiseed_figures(run_dirs: list[str | Path], out_dir: str | Path) -> list[Path]:
+    """Generate shaded generation-curve figures aggregated over multiple seed runs."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Collect per-method per-generation series across seeds
+    all_results = [_load_results(Path(d)) for d in run_dirs]
+    all_results = [r for r in all_results if r]
+
+    specs = [
+        ("in_distribution", "success_rate",      "In-distribution success rate"),
+        ("held_out",         "success_rate",      "Held-out success rate"),
+        ("ood",              "success_rate",      "OOD success rate"),
+        ("adversarial",      "violation_rate",    "Adversarial violation rate"),
+        ("in_distribution",  "mean_safety_margin","Safety margin (ID)"),
+        ("adversarial",      "violation_upper",   "Adversarial viol. upper (95%)"),
+    ]
+
+    fig, axes = plt.subplots(2, 3, figsize=(14, 8))
+    fig.suptitle(f"Evolution Metrics — {len(all_results)} seeds (mean ± 1 std)", fontsize=12)
+
+    for ax, (suite, metric, label) in zip(axes.flat, specs):
+        for method in METHOD_ORDER:
+            # Collect series for each seed
+            series_list = []
+            for results in all_results:
+                if method in results:
+                    s = _gen_series(results[method], suite, metric)
+                    series_list.append(s)
+            if not series_list:
+                continue
+            min_len = min(len(s) for s in series_list)
+            arr = np.array([s[:min_len] for s in series_list])  # (n_seeds, n_gen)
+            mean = np.nanmean(arr, axis=0)
+            std = np.nanstd(arr, axis=0)
+            xs = np.arange(min_len)
+            color = METHOD_COLORS.get(method)
+            ax.plot(xs, mean, label=method, color=color, linewidth=1.8)
+            ax.fill_between(xs, mean - std, mean + std, color=color, alpha=0.15)
+        ax.set_ylabel(label, fontsize=8)
+        ax.set_xlabel("Generation", fontsize=8)
+        ax.legend(fontsize=7)
+        ax.grid(True, alpha=0.25)
+        ax.tick_params(labelsize=7)
+
+    plt.tight_layout()
+    out = out_dir / "generation_curves_multiseed.pdf"
+    fig.savefig(out, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+    return [out]

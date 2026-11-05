@@ -1,9 +1,10 @@
 """Command-line interface.
 
-    sear run CONFIG [--methods B0 SPE] [--out runs/x]   run an evolution study
+    sear run CONFIG [--methods B0 SPE] [--out runs/x] [--seed N]  run an evolution study
     sear report RUN_DIR                                compare methods of a finished run
     sear plot RUN_DIR                                  generate figures from a finished run
     sear render RUN_DIR [--n-episodes N] [--fps F]     render trajectory videos
+    sear aggregate RUN_DIR... [--latex] [--out F]      aggregate multi-seed results
     sear sign-contract CONTRACT.yaml [--key-file K]    sign a safety contract (safety authority)
     sear verify-ledger LEDGER.jsonl                    check an evidence ledger's hash chain
 """
@@ -69,7 +70,13 @@ def print_report(summaries: list[dict]) -> None:
 
 def cmd_run(args: argparse.Namespace) -> int:
     cfg = load_config(args.config)
-    out = args.out or Path("runs") / cfg.get("name", Path(args.config).stem)
+    if args.seed is not None:
+        cfg = dict(cfg)
+        cfg["seed"] = args.seed
+    default_name = cfg.get("name", Path(args.config).stem)
+    if args.seed is not None:
+        default_name = f"{default_name}_s{args.seed}"
+    out = args.out or Path("runs") / default_name
     results = run_experiment(cfg, args.methods, out)
     print()
     print_report([r.summary() for r in results.values()])
@@ -118,6 +125,31 @@ def cmd_render(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_aggregate(args: argparse.Namespace) -> int:
+    from sear.viz.aggregate import aggregate_runs, latex_table, print_aggregate_report
+    from sear.viz.plots import generate_multiseed_figures
+    stats = aggregate_runs(args.run_dirs)
+    if not stats:
+        print("no result.json files found", file=sys.stderr)
+        return 1
+    print_aggregate_report(stats)
+    # shaded generation-curve figure
+    out_dir = Path(args.run_dirs[0]).parent / "figures_multiseed"
+    try:
+        figs = generate_multiseed_figures(args.run_dirs, out_dir)
+        print(f"\nfigures: {', '.join(str(f) for f in figs)}")
+    except Exception as exc:
+        print(f"[plot] skipped: {exc}")
+    if args.latex:
+        tex = latex_table(stats, caption=args.caption, label=args.label)
+        if args.out:
+            Path(args.out).write_text(tex)
+            print(f"LaTeX table written to {args.out}")
+        else:
+            print("\n" + tex)
+    return 0
+
+
 def cmd_sign(args: argparse.Namespace) -> int:
     sig = write_signed(args.contract, load_key(key_file=args.key_file), key_id=args.key_id)
     print(f"signed -> {sig}")
@@ -148,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("config")
     p.add_argument("--methods", nargs="+", choices=sorted(METHODS))
     p.add_argument("--out", type=Path)
+    p.add_argument("--seed", type=int, default=None, help="override config seed")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("report", help="summarize a finished run")
@@ -164,6 +197,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--methods", nargs="+")
     p.add_argument("--fps", type=int, default=20)
     p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("aggregate", help="aggregate multi-seed results and optionally emit LaTeX")
+    p.add_argument("run_dirs", nargs="+")
+    p.add_argument("--latex", action="store_true", help="also print/write a LaTeX table")
+    p.add_argument("--out", default=None, help="write LaTeX to this file instead of stdout")
+    p.add_argument("--caption", default="", help="LaTeX table caption")
+    p.add_argument("--label", default="tab:results", help="LaTeX table label")
+    p.set_defaults(func=cmd_aggregate)
 
     p = sub.add_parser("sign-contract", help="sign a safety contract")
     p.add_argument("contract")
