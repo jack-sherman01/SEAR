@@ -18,9 +18,22 @@ from sear.contracts.signing import load_key, write_signed
 from sear.evolution.experiment import METHODS, load_config, run_experiment
 from sear.lineage.ledger import EvidenceLedger, LedgerIntegrityError
 
+def _cycle(s: dict, suite: str = "in_distribution") -> str:
+    t0 = s["initial"][suite].get("mean_completion_time")
+    t1 = s["final"][suite].get("mean_completion_time")
+    if t0 is None or t1 is None:
+        return "-"
+    try:
+        return f"{float(t0):.2f}→{float(t1):.2f}s"
+    except (TypeError, ValueError):
+        return "-"
+
+
 REPORT_COLUMNS = [
-    ("unsafe adm.", lambda s: f"{s['unsafe_admitted']}/{s['unsafe_proposals']}"),
-    ("FAR", lambda s: _fmt(s["false_acceptance_rate"])),
+    ("unsafe adm.(raw)", lambda s: f"{s['unsafe_admitted']}/{s['unsafe_proposals']}"),
+    ("unsafe adm.(dep)", lambda s: f"{s.get('unsafe_admitted_deployed', '?')}/{s.get('unsafe_proposals_deployed', '?')}"),
+    ("FAR(raw)", lambda s: _fmt(s["false_acceptance_rate"])),
+    ("FAR(dep)", lambda s: _fmt(s.get("false_acceptance_rate_deployed", math.nan))),
     ("admit", lambda s: _fmt(s["admit_rate"])),
     ("reject", lambda s: _fmt(s["reject_rate"])),
     ("rollbk", lambda s: str(s["rollbacks"])),
@@ -29,7 +42,10 @@ REPORT_COLUMNS = [
     ("OOD succ", lambda s: _fmt(s["final"]["ood"]["success_rate"])),
     ("ADV viol", lambda s: _fmt(s["final"]["adversarial"]["violation_rate"])),
     ("ADV ub", lambda s: _fmt(s["final"]["adversarial"]["violation_upper"])),
+    ("min dist", lambda s: _fmt(s["final"]["in_distribution"].get("min_distance", math.nan), 3)),
+    ("drop rate", lambda s: _fmt(s["final"]["adversarial"].get("tool_drop_rate", math.nan))),
     ("margin ret.", lambda s: _fmt(s["margin_retention"].get("in_distribution", math.nan))),
+    ("cycle time", _cycle),
     ("verif s", lambda s: _fmt(s["mean_verification_s"], 1)),
 ]
 

@@ -101,7 +101,9 @@ class EvolutionResult:
 
         def suite_view(rec: GenerationRecord) -> dict[str, dict[str, float]]:
             return {n: {"success_rate": m.success_rate, "violation_rate": m.violation_rate,
-                        "violation_upper": m.violation_upper, "mean_safety_margin": m.mean_safety_margin}
+                        "violation_upper": m.violation_upper, "mean_safety_margin": m.mean_safety_margin,
+                        "mean_completion_time": m.mean_completion_time, "min_distance": m.min_distance,
+                        "tool_drop_rate": m.tool_drop_rate}
                     for n, m in rec.suites.items()}
 
         retention = {}
