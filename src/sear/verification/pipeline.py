@@ -65,9 +65,11 @@ def default_pipeline(*, statistical_with_runtime: bool = False, epsilon: float =
                      n_sim: int = 60, certificate_mode: str = "filtered", fail_fast: bool = True) -> VerificationPipeline:
     """The five-step verifier of the proposal.
 
-    Regression and severe-event simulation always test the *raw* candidate
-    (it must not rely on the filter for nominal safety); the statistical
-    bound is computed for the configuration that will actually be deployed.
+    * nominal regression (in-distribution) and severe-event simulation test the
+      *raw* candidate: it must not rely on the safety filter for nominal work;
+    * adversarial regression and the statistical bound test the configuration
+      that will actually be deployed (with runtime assurance when the method
+      uses it), since rare hazards are what the runtime layer is for.
     """
     return VerificationPipeline(
         [
@@ -76,7 +78,10 @@ def default_pipeline(*, statistical_with_runtime: bool = False, epsilon: float =
             PermissionCheck(),
             EvaluatorChangeCheck(),
             InterfaceCheck(),
-            ReplayRegressionCheck(),
+            ReplayRegressionCheck(suites=("in_distribution",), retrieved="nominal",
+                                  name="replay_regression_nominal"),
+            ReplayRegressionCheck(suites=("adversarial",), retrieved="adversarial",
+                                  with_runtime=statistical_with_runtime, name="replay_regression_adversarial"),
             RandomizedSimulationCheck(n=n_sim),
             BarrierCertificateCheck(mode=certificate_mode, mandatory=False),
             StatisticalSafetyCheck(epsilon=epsilon, confidence=confidence, n=n_sim,

@@ -62,7 +62,21 @@ class VerificationContext:
             outcomes.append(self._cache[key])
         return outcomes
 
-    def regression_scenarios(self, suites: Sequence[str]) -> list[Scenario]:
+    def regression_scenarios(self, suites: Sequence[str], retrieved: str = "all") -> list[Scenario]:
+        """Frozen suites plus retrieved historical failures.
+
+        ``retrieved`` selects which retrieved scenarios to add: ``"all"``,
+        ``"none"``, ``"adversarial"`` (tagged adversarial) or ``"nominal"`` (the rest).
+        """
         scenarios = [s for name in suites for s in self.benchmark[name]]
-        known = {s.scenario_id for s in scenarios}
-        return scenarios + [s for s in self.extra_regression if s.scenario_id not in known]
+        known = {s.digest for s in scenarios}  # by content: equal IDs may denote different scenarios
+        extra = [s for s in self.extra_regression if s.digest not in known]
+        if retrieved == "none":
+            extra = []
+        elif retrieved == "adversarial":
+            extra = [s for s in extra if "adversarial" in s.tags]
+        elif retrieved == "nominal":
+            extra = [s for s in extra if "adversarial" not in s.tags]
+        elif retrieved != "all":
+            raise ValueError(f"unknown retrieved filter {retrieved!r}")
+        return scenarios + extra

@@ -95,4 +95,26 @@ def test_pipeline_end_to_end(ctx, z0):
     bad = pipe.verify(_art(z0, touched_paths=("src/sear/contracts/oracle.py",)), ctx)
     assert bad.decision is AdmissionDecision.REJECT
     assert len(bad.checks) < len(good.checks)  # fail-fast skipped expensive tiers
+    assert not good.check("replay_regression_nominal").metrics["with_runtime"]
     assert good.verify(good.sign(b"k"), b"k") and not good.verify(good.sign(b"k"), b"other")
+
+
+def test_split_regression_uses_deployed_config_for_adversarial(ctx, z0):
+    from dataclasses import replace
+    from sear.runtime import RuntimeAssurance
+    rctx = replace(ctx, runtime_factory=lambda: RuntimeAssurance(ctx.oracle.contract), _cache={}, shared={})
+    ev = default_pipeline(statistical_with_runtime=True, n_sim=30).verify(
+        _art(z0, policy_params={"approach_speed": 0.2}), rctx)
+    adv = ev.check("replay_regression_adversarial")
+    assert adv.metrics["with_runtime"] and adv.verdict is Verdict.PASS
+
+
+def test_retrieved_scenarios_are_routed_by_tag(ctx):
+    from dataclasses import replace
+    adv = Benchmark.build(6, seed=7)["adversarial"].scenarios[:2]
+    nom = Benchmark.build(6, seed=7)["in_distribution"].scenarios[:3]
+    c = replace(ctx, extra_regression=tuple(adv + nom))
+    base = len(ctx.benchmark["in_distribution"])
+    assert len(c.regression_scenarios(("in_distribution",), "nominal")) == base + 3
+    assert len(c.regression_scenarios(("in_distribution",), "adversarial")) == base + 2
+    assert len(c.regression_scenarios(("in_distribution",), "none")) == base
