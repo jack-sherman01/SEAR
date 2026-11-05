@@ -20,7 +20,7 @@ class DeploymentManager:
 
     def __init__(self, genesis: SystemState, ledger: EvidenceLedger, store: VersionStore | None = None) -> None:
         self.ledger = ledger
-        self.store = store or VersionStore()
+        self.store = store if store is not None else VersionStore()
         self.store.put(genesis)
         self._stack: list[SystemState] = [genesis]
         ledger.append(RecordKind.GENESIS, {"state": genesis.digest, "generation": genesis.generation,

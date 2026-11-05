@@ -160,8 +160,8 @@ class EvolutionLoop:
         self.config = config
         self.pipeline = pipeline
         self.runtime_factory = runtime_factory
-        self.ledger = ledger or EvidenceLedger()
-        self.store = store or VersionStore()
+        self.ledger = ledger if ledger is not None else EvidenceLedger()
+        self.store = store if store is not None else VersionStore()
         self.verifier_key = verifier_key
         self.benchmark = Benchmark.build(config.benchmark_size, seed=config.seed)
         self.ctx = VerificationContext(

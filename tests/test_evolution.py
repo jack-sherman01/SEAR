@@ -79,5 +79,18 @@ def test_loop_runs_and_records(method, oracle):
         assert res.records[1].decision == "admit_unverified"
 
 
+def test_run_persists_ledger_and_states(oracle, tmp_path):
+    from sear.lineage import EvidenceLedger
+    build_loop("SPE", {**SMOKE, "generations": 1}, oracle, DEV_KEY, tmp_path).run()
+    ledger = EvidenceLedger(tmp_path / "SPE" / "ledger.jsonl")  # reload from disk
+    assert len(ledger) >= 2 and ledger.verify_chain()
+    assert list((tmp_path / "SPE" / "states").glob("*.json"))
+
+
+def test_cli_verify_ledger(tmp_path, capsys):
+    from sear.cli import main
+    assert main(["verify-ledger", str(tmp_path / "missing.jsonl")]) == 1
+
+
 def test_all_methods_defined():
     assert set(METHODS) == {"B0", "B1", "B2", "B3", "SPE"}
