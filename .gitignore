@@ -221,3 +221,6 @@ __marimo__/
 
 # Private local files
 private/
+
+# Experiment outputs
+runs/
