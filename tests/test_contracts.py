@@ -16,7 +16,7 @@ from sear.contracts import (
 )
 from sear.core import TrajectoryRecorder, Verdict
 
-CONTRACT_YAML = Path(__file__).parents[1] / "configs" / "contracts" / "nailing_surrogate.yaml"
+from tests.conftest import CONTRACT_YAML
 KEY = b"test-key"
 
 
