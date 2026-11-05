@@ -2,6 +2,10 @@
 
 **Safe Evolution of Agentic Robots: Verifiable Safety Invariants for Self-Improving Physical Agents**
 
+<p align="center">
+  <img src="docs/sear-overview.svg" alt="SEAR overview: an untrusted improvement agent proposes updates; a tiered verifier admits, restricts or rejects them; admitted policies run under runtime assurance; contracts, oracle, frozen benchmark and evidence ledger sit with the safety authority" width="100%">
+</p>
+
 A robot may be safe in generation *k* and unsafe after an apparently beneficial
 update to its policy, memory, evaluator or tools. SEAR is a framework for
 admitting autonomous updates only with independently checkable evidence, so
