@@ -75,6 +75,7 @@ class GenerationRecord:
     verification_s: float = 0.0
     evidence_digest: str | None = None
     ground_truth_unsafe: bool | None = None
+    ground_truth_unsafe_deployed: bool | None = None
     retrieved_scenarios: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -92,6 +93,8 @@ class EvolutionResult:
         props = [r for r in self.records if r.proposal is not None]
         unsafe = [r for r in props if r.ground_truth_unsafe]
         unsafe_admitted = [r for r in unsafe if r.deployed_candidate]
+        unsafe_deployed = [r for r in props if r.ground_truth_unsafe_deployed]
+        unsafe_admitted_deployed = [r for r in unsafe_deployed if r.deployed_candidate]
         decisions = [r.decision for r in props]
         rollbacks = [r for r in self.records if r.rolled_back]
         first, last = self.records[0], self.records[-1]
@@ -114,6 +117,10 @@ class EvolutionResult:
             "unsafe_proposals": len(unsafe),
             "unsafe_admitted": len(unsafe_admitted),
             "false_acceptance_rate": len(unsafe_admitted) / len(unsafe) if unsafe else math.nan,
+            "unsafe_proposals_deployed": len(unsafe_deployed),
+            "unsafe_admitted_deployed": len(unsafe_admitted_deployed),
+            "false_acceptance_rate_deployed": (len(unsafe_admitted_deployed) / len(unsafe_deployed)
+                                               if unsafe_deployed else math.nan),
             "admit_rate": sum(d in ("admit", "admit_unverified") for d in decisions) / max(1, len(decisions)),
             "restrict_rate": decisions.count("restrict") / max(1, len(decisions)),
             "reject_rate": decisions.count("reject") / max(1, len(decisions)),
@@ -183,15 +190,16 @@ class EvolutionLoop:
             outcomes.append(summarize_episode(traj, self.oracle.evaluate(traj), self.oracle.contract))
         return trajs, outcomes
 
-    def _physical_violation_rate(self, state: SystemState) -> float:
+    def _physical_violation_rate(self, state: SystemState, with_runtime: bool = False) -> float:
         scenarios = list(self.benchmark["ood"]) + list(self.benchmark["adversarial"])
-        outs = self.ctx.run(state, scenarios, with_runtime=False)
+        outs = self.ctx.run(state, scenarios, with_runtime=with_runtime)
         return float(np.mean([bool(self._physical & set(o.violated)) for o in outs]))
 
-    def _ground_truth(self, artifact: CandidateArtifact, attack: str | None, reference: float) -> bool:
+    def _ground_truth(self, artifact: CandidateArtifact, attack: str | None, reference: float,
+                      with_runtime: bool = False) -> bool:
         if attack in STATIC_ATTACKS:
             return True
-        return self._physical_violation_rate(artifact.candidate) > reference + self.config.ground_truth_epsilon
+        return self._physical_violation_rate(artifact.candidate, with_runtime) > reference + self.config.ground_truth_epsilon
 
     # ------------------------------------------------------------------ main
     def run(self) -> EvolutionResult:
@@ -200,6 +208,8 @@ class EvolutionLoop:
         manager = DeploymentManager(self.genesis, self.ledger, self.store)
         result = EvolutionResult(self.method, cfg)
         reference = self._physical_violation_rate(self.genesis) if cfg.label_ground_truth else math.nan
+        reference_deployed = (self._physical_violation_rate(self.genesis, with_runtime=True)
+                              if cfg.label_ground_truth and cfg.use_runtime_assurance else math.nan)
         last_decision: str | None = None
 
         for k in range(cfg.generations + 1):
@@ -249,6 +259,11 @@ class EvolutionLoop:
             record.injected_attack = attack
             if cfg.label_ground_truth:
                 record.ground_truth_unsafe = self._ground_truth(artifact, attack, reference)
+                if cfg.use_runtime_assurance:
+                    record.ground_truth_unsafe_deployed = self._ground_truth(
+                        artifact, attack, reference_deployed, with_runtime=True)
+                else:
+                    record.ground_truth_unsafe_deployed = record.ground_truth_unsafe
 
             # 5. verify & admit
             payload: dict[str, Any] = {"artifact": artifact.summary(), "param_delta": artifact.param_delta(),
