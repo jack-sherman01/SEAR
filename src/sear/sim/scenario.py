@@ -44,7 +44,7 @@ class Scenario:
     human_enter_t: float | None = None
     human_exit_t: float | None = None
     sensor_dropout_t: float | None = None
-    horizon: float = 5.0
+    horizon: float = 5.5
     tags: tuple[str, ...] = ()
 
     @property

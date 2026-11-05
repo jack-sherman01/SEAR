@@ -23,7 +23,7 @@ from sear.core.trajectory import Trajectory, TrajectoryRecorder
 from sear.sim.scenario import Scenario
 
 HIGH_POWER_TOOL = "fastener.high_power"
-STOP_SPEED = 0.02  # m/s, "stopped" threshold
+STOP_SPEED = 0.03  # m/s, standstill tolerance (above process-noise level)
 TARGET_TOL = 0.01  # m, lateral tolerance for fastening
 
 
