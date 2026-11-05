@@ -2,6 +2,8 @@
 
     sear run CONFIG [--methods B0 SPE] [--out runs/x]   run an evolution study
     sear report RUN_DIR                                compare methods of a finished run
+    sear plot RUN_DIR                                  generate figures from a finished run
+    sear render RUN_DIR [--n-episodes N] [--fps F]     render trajectory videos
     sear sign-contract CONTRACT.yaml [--key-file K]    sign a safety contract (safety authority)
     sear verify-ledger LEDGER.jsonl                    check an evidence ledger's hash chain
 """
@@ -72,6 +74,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     print()
     print_report([r.summary() for r in results.values()])
     print(f"\nresults written to {out}")
+    # auto-generate figures
+    try:
+        from sear.viz.plots import generate_figures
+        figs = generate_figures(out)
+        print(f"figures:  {', '.join(str(f) for f in figs)}")
+    except Exception as exc:
+        print(f"[plot] skipped: {exc}")
     return 0
 
 
@@ -82,6 +91,31 @@ def cmd_report(args: argparse.Namespace) -> int:
         return 1
     print_report([json.loads(f.read_text())["summary"] for f in files])
     return 0
+
+
+def cmd_plot(args: argparse.Namespace) -> int:
+    from sear.viz.plots import generate_figures
+    try:
+        figs = generate_figures(args.run_dir)
+        for f in figs:
+            print(f)
+        return 0
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_render(args: argparse.Namespace) -> int:
+    from sear.viz.render import render_episodes
+    try:
+        videos = render_episodes(args.run_dir, n_episodes=args.n_episodes,
+                                 methods=args.methods, fps=args.fps)
+        for v in videos:
+            print(v)
+        return 0
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
 
 def cmd_sign(args: argparse.Namespace) -> int:
@@ -119,6 +153,17 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("report", help="summarize a finished run")
     p.add_argument("run_dir")
     p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("plot", help="generate figures from a finished run")
+    p.add_argument("run_dir")
+    p.set_defaults(func=cmd_plot)
+
+    p = sub.add_parser("render", help="render trajectory videos from a finished run")
+    p.add_argument("run_dir")
+    p.add_argument("--n-episodes", type=int, default=3)
+    p.add_argument("--methods", nargs="+")
+    p.add_argument("--fps", type=int, default=20)
+    p.set_defaults(func=cmd_render)
 
     p = sub.add_parser("sign-contract", help="sign a safety contract")
     p.add_argument("contract")

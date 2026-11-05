@@ -10,7 +10,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Alfredo", email = "heng.zhang@iit.it" }]
-dependencies = ["numpy>=1.24", "scipy>=1.10", "pyyaml>=6.0"]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "matplotlib>=3.10.9",
+    "pillow>=12.3.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
