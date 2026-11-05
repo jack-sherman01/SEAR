@@ -13,14 +13,14 @@ from sear.verification.context import VerificationContext
 from sear.verification.evidence import CheckResult
 
 
-def sim_key(digest: str, with_runtime: bool) -> str:
-    return f"sim:{digest}:{int(with_runtime)}"
+def sim_key(digest: str, n: int, with_runtime: bool) -> str:
+    return f"sim:{digest}:{n}:{int(with_runtime)}"
 
 
 def randomized_outcomes(artifact: CandidateArtifact, ctx: VerificationContext, n: int,
                         with_runtime: bool) -> tuple[list, list[EpisodeOutcome]]:
     """Randomized rollouts of the candidate, shared between checks via ``ctx.shared``."""
-    key = sim_key(artifact.candidate.digest, with_runtime)
+    key = sim_key(artifact.candidate.digest, n, with_runtime)
     if key not in ctx.shared:
         seed = int(artifact.digest[:8], 16) % 1_000_000  # fresh, but reproducible per artifact
         scenarios = randomized_scenarios(n, seed)
