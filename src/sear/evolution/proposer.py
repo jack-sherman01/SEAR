@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
@@ -70,12 +70,16 @@ class GreedyTuningProposer(Proposer):
     def __init__(self, n_candidates: int = 6, trials: int = 4, step: float = 0.3,
                  tunable: Sequence[str] = ("approach_speed", "press_force", "hover_height", "vel_gain", "pos_gain"),
                  cost_fn: Callable[[Trajectory], float] | None = None, lagrangian: bool = False,
-                 lagrange_lr: float = 2.0, cost_budget: float = 0.0) -> None:
+                 lagrange_lr: float = 2.0, cost_budget: float = 0.0, adapt_step: bool = True,
+                 min_step: float = 0.03) -> None:
         if lagrangian and cost_fn is None:
             raise ValueError("lagrangian proposer needs a cost_fn")
         self.n_candidates = n_candidates
         self.trials = trials
         self.step = step
+        self.max_step = step
+        self.min_step = min_step
+        self.adapt_step = adapt_step
         self.tunable = tuple(tunable)
         self.cost_fn = cost_fn
         self.lagrangian = lagrangian
@@ -86,16 +90,22 @@ class GreedyTuningProposer(Proposer):
             self.name = "safe_rl_agent"
 
     def observe(self, fb: Feedback) -> None:
-        if self.lagrangian and fb.safety_cost_rate is not None:
-            self.multiplier = max(0.0, self.multiplier + self.lagrange_lr * (fb.safety_cost_rate - self.cost_budget))
+        """Trust-region adaptation: shrink the step after a rejected/restricted
+        proposal, grow it back after an admitted one."""
+        if not self.adapt_step or fb.last_decision is None:
+            return
+        if fb.last_decision in ("reject", "restrict"):
+            self.step = max(self.min_step, self.step * 0.5)
+        else:
+            self.step = min(self.max_step, self.step * 1.5)
 
-    def _objective(self, state: SystemState, params: Mapping[str, float], scenarios) -> float:
+    def _evaluate(self, state: SystemState, params: Mapping[str, float], scenarios) -> tuple[float, float]:
+        """(task score by the agent's own evaluator, safety cost rate) on raw sim trials."""
         policy = build_policy(PolicyState(state.policy.kind, params))
         trajs = [run_episode(sc, policy, allowed_tools=state.tools.allowed) for sc in scenarios]
         score = TaskEvaluator(state.evaluator).score(trajs)
-        if self.lagrangian:
-            score -= self.multiplier * float(np.mean([self.cost_fn(t) for t in trajs]))
-        return score
+        cost = float(np.mean([self.cost_fn(t) for t in trajs])) if self.cost_fn is not None else 0.0
+        return score, cost
 
     def propose(self, fb: Feedback, rng: np.random.Generator) -> UpdateProposal:
         state = fb.state
@@ -110,8 +120,12 @@ class GreedyTuningProposer(Proposer):
             for k in keys:
                 cand[k] = base[k] * float(np.exp(rng.normal(0.0, self.step)))
             candidates.append(_clip(cand, kind))
-        base_score = self._objective(state, base, scenarios)
-        scores = [self._objective(state, c, scenarios) for c in candidates]
+        base_score, base_cost = self._evaluate(state, base, scenarios)
+        evals = [self._evaluate(state, c, scenarios) for c in candidates]
+        if self.lagrangian:  # dual ascent on the agent's own (unfiltered) trial cost
+            costs = [base_cost] + [c for _, c in evals]
+            self.multiplier = max(0.0, self.multiplier + self.lagrange_lr * (float(np.mean(costs)) - self.cost_budget))
+        scores = [s - self.multiplier * c if self.lagrangian else s for s, c in evals]
         best = int(np.argmax(scores))
         changed = {k: v for k, v in candidates[best].items() if v != base[k]}
         note = (f"g{fb.generation}: {', '.join(f'{k}={v:.3g}' for k, v in changed.items())} "
@@ -124,7 +138,8 @@ class GreedyTuningProposer(Proposer):
             new_dataset_ids=(f"agent-trials-g{fb.generation}",),
             new_episodes=(len(candidates) + 1) * len(scenarios),
             declared_impact=f"expected task score {scores[best]:.3f} vs {base_score:.3f}",
-            metadata={"expected_score": scores[best], "base_score": base_score, "multiplier": self.multiplier},
+            metadata={"expected_score": scores[best], "base_score": base_score, "multiplier": self.multiplier,
+                      "step": self.step},
         )
 
 
@@ -142,6 +157,9 @@ class AdversarialProposer(Proposer):
         self.injected: dict[int, str] = {}
 
     def observe(self, fb: Feedback) -> None:
+        # the base agent only learns from the fate of its *own* proposals
+        if fb.generation - 1 in self.injected:
+            fb = replace(fb, last_decision=None)
         self.base.observe(fb)
 
     def propose(self, fb: Feedback, rng: np.random.Generator) -> UpdateProposal:

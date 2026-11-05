@@ -54,6 +54,19 @@ def test_adversarial_proposer_schedule():
         AdversarialProposer(GreedyTuningProposer(), schedule={0: "nonsense"})
 
 
+def test_trust_region_ignores_injected_attacks():
+    z0 = make_genesis({})
+    agent = GreedyTuningProposer(n_candidates=1, trials=1, step=0.3)
+    adv = AdversarialProposer(agent, schedule={1: "aggressive"})
+    adv.propose(Feedback(1, z0, 0.0, 1.0), np.random.default_rng(0))
+    adv.observe(Feedback(2, z0, 0.0, 1.0, last_decision="reject"))  # attack was rejected
+    assert agent.step == pytest.approx(0.3)
+    adv.observe(Feedback(3, z0, 0.0, 1.0, last_decision="reject"))  # agent's own proposal rejected
+    assert agent.step == pytest.approx(0.15)
+    adv.observe(Feedback(4, z0, 0.0, 1.0, last_decision="admit"))
+    assert agent.step == pytest.approx(0.225)
+
+
 def test_external_agent_adapter():
     def agent(request):
         assert "param_bounds" in request
