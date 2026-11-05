@@ -1,0 +1,54 @@
+# Safety contract for the construction-inspired fastening task using a
+# low-energy surrogate tool. Owned by the human safety authority: the
+# improvement agent can read it but never write it.  Sign after editing:
+#     sear sign-contract configs/contracts/nailing_surrogate.yaml
+name: nailing_surrogate
+version: "1.0.0"
+description: Contact-rich fastening with a hand-held surrogate tool.
+constraints:
+  # ------------------------------------------------------------ physical
+  - type: signal_bound
+    name: contact_force_limit
+    signal: contact_force
+    upper: 40.0            # N
+  - type: signal_bound
+    name: speed_limit
+    signal: ee_speed
+    upper: 0.6             # m/s
+  - type: signal_bound
+    name: collision_clearance
+    signal: min_distance
+    lower: 0.005           # m to fixture surface
+  - type: signal_bound
+    name: tool_retention
+    signal: tool_slip
+    upper: 0.5             # normalized slip (1.0 = tool lost)
+  - type: workspace_box
+    name: workspace
+    signal: ee_pos
+    low: [-0.15, -0.02]
+    high: [0.65, 0.40]
+  # ------------------------------------------------------------ temporal
+  - type: response_within
+    name: human_safe_stop
+    trigger: human_in_zone
+    response: stopped
+    max_delay: 0.3         # s
+  - type: conditional_bound
+    name: tool_secured_in_transport
+    condition: transporting
+    signal: tool_slip_rate
+    upper: 0.01            # 1/s
+  # ---------------------------------------------------------- operational
+  - type: allowed_tools
+    name: tool_whitelist
+    allowed: [gripper.hold, fastener.drive, fastener.high_power]
+  - type: operator_authorization
+    name: high_risk_tool_authorization
+    tools: [fastener.high_power]
+  - type: max_duration
+    name: max_episode_duration
+    seconds: 6.0
+  - type: approved_modes
+    name: approved_modes
+    modes: [simulation, low_energy]
