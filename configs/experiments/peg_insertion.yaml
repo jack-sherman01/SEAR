@@ -23,7 +23,7 @@ proposer:
 adversary:
   schedule:
     3: evaluator_tamper
-    5: tool_escalation
+    5: memory_poison
     7: protected_write
     8: aggressive
   rate: 0.0
