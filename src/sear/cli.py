@@ -1,0 +1,122 @@
+"""Command-line interface.
+
+    sear run CONFIG [--methods B0 SPE] [--out runs/x]   run an evolution study
+    sear report RUN_DIR                                compare methods of a finished run
+    sear sign-contract CONTRACT.yaml [--key-file K]    sign a safety contract (safety authority)
+    sear verify-ledger LEDGER.jsonl                    check an evidence ledger's hash chain
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import sys
+from pathlib import Path
+
+from sear.contracts.signing import load_key, write_signed
+from sear.evolution.experiment import METHODS, load_config, run_experiment
+from sear.lineage.ledger import EvidenceLedger, LedgerIntegrityError
+
+REPORT_COLUMNS = [
+    ("unsafe adm.", lambda s: f"{s['unsafe_admitted']}/{s['unsafe_proposals']}"),
+    ("FAR", lambda s: _fmt(s["false_acceptance_rate"])),
+    ("admit", lambda s: _fmt(s["admit_rate"])),
+    ("reject", lambda s: _fmt(s["reject_rate"])),
+    ("rollbk", lambda s: str(s["rollbacks"])),
+    ("dep.viol", lambda s: str(s["deployment_violations"])),
+    ("ID succ", lambda s: _fmt(s["final"]["in_distribution"]["success_rate"])),
+    ("OOD succ", lambda s: _fmt(s["final"]["ood"]["success_rate"])),
+    ("ADV viol", lambda s: _fmt(s["final"]["adversarial"]["violation_rate"])),
+    ("ADV ub", lambda s: _fmt(s["final"]["adversarial"]["violation_upper"])),
+    ("margin ret.", lambda s: _fmt(s["margin_retention"].get("in_distribution", math.nan))),
+    ("verif s", lambda s: _fmt(s["mean_verification_s"], 1)),
+]
+
+
+def _fmt(x, digits: int = 2) -> str:
+    try:
+        return "-" if x is None or not math.isfinite(float(x)) else f"{float(x):.{digits}f}"
+    except (TypeError, ValueError):
+        return str(x)
+
+
+def print_report(summaries: list[dict]) -> None:
+    header = ["method"] + [c for c, _ in REPORT_COLUMNS]
+    rows = [[s["method"]] + [f(s) for _, f in REPORT_COLUMNS] for s in summaries]
+    widths = [max(len(str(r[i])) for r in [header] + rows) for i in range(len(header))]
+    for r in [header] + rows:
+        print("  ".join(str(v).rjust(w) for v, w in zip(r, widths)))
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    cfg = load_config(args.config)
+    out = args.out or Path("runs") / cfg.get("name", Path(args.config).stem)
+    results = run_experiment(cfg, args.methods, out)
+    print()
+    print_report([r.summary() for r in results.values()])
+    print(f"\nresults written to {out}")
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    files = sorted(Path(args.run_dir).glob("*/result.json"))
+    if not files:
+        print(f"no */result.json under {args.run_dir}", file=sys.stderr)
+        return 1
+    print_report([json.loads(f.read_text())["summary"] for f in files])
+    return 0
+
+
+def cmd_sign(args: argparse.Namespace) -> int:
+    sig = write_signed(args.contract, load_key(key_file=args.key_file), key_id=args.key_id)
+    print(f"signed -> {sig}")
+    return 0
+
+
+def cmd_verify_ledger(args: argparse.Namespace) -> int:
+    if not Path(args.ledger).is_file():
+        print(f"INVALID: ledger file {args.ledger} not found")
+        return 1
+    try:
+        led = EvidenceLedger(args.ledger)
+    except LedgerIntegrityError as exc:
+        print(f"INVALID: {exc}")
+        return 1
+    kinds: dict[str, int] = {}
+    for r in led.records():
+        kinds[r.kind.value] = kinds.get(r.kind.value, 0) + 1
+    print(f"OK: {len(led)} records, chain intact; {kinds}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="sear", description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("run", help="run an evolution study")
+    p.add_argument("config")
+    p.add_argument("--methods", nargs="+", choices=sorted(METHODS))
+    p.add_argument("--out", type=Path)
+    p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("report", help="summarize a finished run")
+    p.add_argument("run_dir")
+    p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("sign-contract", help="sign a safety contract")
+    p.add_argument("contract")
+    p.add_argument("--key-file")
+    p.add_argument("--key-id", default="default")
+    p.set_defaults(func=cmd_sign)
+
+    p = sub.add_parser("verify-ledger", help="verify an evidence ledger")
+    p.add_argument("ledger")
+    p.set_defaults(func=cmd_verify_ledger)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
