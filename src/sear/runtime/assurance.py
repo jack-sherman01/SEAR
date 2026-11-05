@@ -27,6 +27,27 @@ from sear.runtime.qp import QPResult, solve_min_norm_qp
 from sear.sim.env import Observation
 
 
+def domain_from_contract(contract: Contract) -> "CertifiedDomain":
+    """Derive a CertifiedDomain from the contract's workspace and speed limits."""
+    from sear.contracts.constraints import SignalBound, WorkspaceBox
+    from sear.runtime.monitor import CertifiedDomain
+    pos_low: tuple[float, ...] = (-0.15, -0.02)
+    pos_high: tuple[float, ...] = (0.65, 0.40)
+    max_speed = 0.6
+    max_force = 40.0
+    for c in contract.of_type(WorkspaceBox):
+        if c.signal == "ee_pos":
+            pos_low = tuple(float(v) for v in c.low)
+            pos_high = tuple(float(v) for v in c.high)
+    for c in contract.of_type(SignalBound):
+        if type(c) is SignalBound and c.signal == "ee_speed" and c.upper is not None:
+            max_speed = float(c.upper)
+        if type(c) is SignalBound and c.signal == "contact_force" and c.upper is not None:
+            max_force = float(c.upper)
+    return CertifiedDomain(position_low=pos_low, position_high=pos_high,
+                           max_speed=max_speed, max_measured_force=max_force)
+
+
 class RTAMode(IntEnum):
     NOMINAL = 0
     FILTERED = 1

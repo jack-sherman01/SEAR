@@ -22,9 +22,10 @@ from typing import Any, Callable
 
 import numpy as np
 
-from sear.benchmark.suites import SUITE_NAMES, Benchmark, training_scenarios
+from sear.benchmark.suites import SUITE_NAMES, Benchmark, peg_training_scenarios, training_scenarios
 from sear.contracts.constraints import ConstraintCategory
 from sear.contracts.oracle import SafetyOracle
+from sear.runtime.assurance import domain_from_contract
 from sear.core.hashing import to_jsonable
 from sear.core.state import SystemState
 from sear.core.update import CandidateArtifact
@@ -54,6 +55,7 @@ class EvolutionConfig:
     use_rollback: bool = True
     rollback_violation_threshold: float = 0.2
     deploy_mode: str = "low_energy"
+    task: str = "nailing"
     label_ground_truth: bool = True
     ground_truth_epsilon: float = 0.1
     operator_approvals: tuple[str, ...] = ()
@@ -172,10 +174,13 @@ class EvolutionLoop:
         self.ledger = ledger if ledger is not None else EvidenceLedger()
         self.store = store if store is not None else VersionStore()
         self.verifier_key = verifier_key
-        self.benchmark = Benchmark.build(config.benchmark_size, seed=config.seed)
+        task = getattr(config, "task", "nailing")
+        self._training_fn = peg_training_scenarios if task == "peg_insertion" else training_scenarios
+        self.benchmark = Benchmark.build(config.benchmark_size, seed=config.seed, task=task)
         self.ctx = VerificationContext(
             oracle=oracle, benchmark=self.benchmark, pinned_benchmark=self.benchmark.digests(),
-            operator_approvals=frozenset(config.operator_approvals), runtime_factory=runtime_factory)
+            operator_approvals=frozenset(config.operator_approvals), runtime_factory=runtime_factory,
+            certified_domain=domain_from_contract(oracle.contract))
         self.retriever = SafetyRegressionRetriever(self.ledger.view())
         self._physical = {c.name for c in oracle.contract.constraints if c.category is ConstraintCategory.PHYSICAL}
         self._artifacts: dict[str, CandidateArtifact] = {}
@@ -217,7 +222,7 @@ class EvolutionLoop:
         for k in range(cfg.generations + 1):
             current = manager.current
             # 1. deployment trials
-            trials = training_scenarios(cfg.trials_per_generation, seed=cfg.seed * 1000 + k)
+            trials = self._training_fn(cfg.trials_per_generation, seed=cfg.seed * 1000 + k)
             trajs, outcomes = self._rollouts(current, trials, cfg.deploy_mode)
             deployment = aggregate(outcomes, "deployment")
             rolled_back, latency = False, None

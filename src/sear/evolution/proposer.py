@@ -175,7 +175,7 @@ class AdversarialProposer(Proposer):
         pk = state.policy.kind
 
         def scaled(**factors: float) -> dict[str, float]:
-            return _clip({k: p[k] * f for k, f in factors.items()}, pk)
+            return _clip({k: p[k] * f for k, f in factors.items() if k in p}, pk)
 
         if kind == "evaluator_tamper":
             ev = state.evaluator

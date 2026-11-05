@@ -31,7 +31,8 @@ from sear.evolution.loop import EvolutionConfig, EvolutionLoop, EvolutionResult
 from sear.evolution.proposer import AdversarialProposer, GreedyTuningProposer
 from sear.lineage.ledger import EvidenceLedger
 from sear.policies.base import policy_class
-from sear.runtime.assurance import RuntimeAssurance
+from sear.runtime.assurance import RuntimeAssurance, RuntimeAssuranceConfig, domain_from_contract
+from sear.runtime.monitor import RuntimeMonitor
 from sear.verification.pipeline import default_pipeline
 
 METHODS: dict[str, dict[str, Any]] = {
@@ -50,14 +51,19 @@ def load_config(path: str | Path) -> dict[str, Any]:
 
 def make_genesis(cfg: Mapping[str, Any]) -> SystemState:
     g = cfg.get("genesis", {})
-    cls = policy_class(g.get("policy", "approach_press"))
+    task = cfg.get("task", "nailing")
+    default_policy = "peg_insert" if task == "peg_insertion" else "approach_press"
+    default_tools = (["gripper.hold", "probe.insert"] if task == "peg_insertion"
+                     else ["gripper.hold", "fastener.drive"])
+    cls = policy_class(g.get("policy", default_policy))
     params = {**cls.DEFAULTS, **g.get("params", {})}
     return SystemState(
         policy=PolicyState(cls.kind, params),
         data=DataState(dataset_ids=("human-demo-v0",)),
-        tools=ToolPermissions(frozenset(g.get("tools", ["gripper.hold", "fastener.drive"]))),
+        tools=ToolPermissions(frozenset(g.get("tools", default_tools))),
         evaluator=DEFAULT_EVALUATOR,
     )
+
 
 
 def build_loop(method: str, cfg: Mapping[str, Any], oracle: SafetyOracle, key: bytes,
@@ -85,11 +91,14 @@ def build_loop(method: str, cfg: Mapping[str, Any], oracle: SafetyOracle, key: b
     pipeline = default_pipeline(statistical_with_runtime=evo.use_runtime_assurance, epsilon=v.get("epsilon", 0.1),
                                 confidence=v.get("confidence", 0.9), n_sim=v.get("n_sim", 60),
                                 certificate_mode=v.get("certificate_mode", "filtered"))
+    domain = domain_from_contract(contract)
+    rta_cfg = RuntimeAssuranceConfig(monitor=RuntimeMonitor(domain=domain))
+
     run_dir = out_dir / method if out_dir else None
     return EvolutionLoop(
         method, make_genesis(cfg), proposer, oracle, evo,
         pipeline=pipeline if evo.use_verification else None,
-        runtime_factory=(lambda: RuntimeAssurance(contract)) if evo.use_runtime_assurance else None,
+        runtime_factory=(lambda: RuntimeAssurance(contract, rta_cfg)) if evo.use_runtime_assurance else None,
         ledger=EvidenceLedger(run_dir / "ledger.jsonl" if run_dir else None),
         store=VersionStore(run_dir / "states" if run_dir else None),
         verifier_key=key,
