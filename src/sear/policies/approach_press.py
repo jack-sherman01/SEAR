@@ -17,6 +17,8 @@ import numpy as np
 from sear.policies.base import Policy, register_policy
 from sear.sim.env import Observation
 
+PRESS_LATERAL_MAX = 10.0  # N, gentle lateral correction while in contact
+
 
 @register_policy
 class ApproachPressPolicy(Policy):
@@ -54,7 +56,7 @@ class ApproachPressPolicy(Policy):
         force = obs.contact_force if math.isfinite(obs.contact_force) else 0.0
         dx = obs.target_x - p[0]
         if force > k["contact_threshold"]:
-            ux = k["vel_gain"] * (k["pos_gain"] * dx - v[0])
+            ux = float(np.clip(k["vel_gain"] * (k["pos_gain"] * dx - v[0]), -PRESS_LATERAL_MAX, PRESS_LATERAL_MAX))
             uy = -k["press_force"] - 0.1 * k["vel_gain"] * v[1]
             return np.array([ux, uy])
         if abs(dx) > 0.005:
