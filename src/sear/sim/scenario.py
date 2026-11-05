@@ -28,6 +28,11 @@ class DynamicsParams:
     force_noise_std: float = 0.3  # F/T sensor noise [N]
     pos_noise_std: float = 0.0005  # state-estimation noise [m]
     vel_noise_std: float = 0.002  # [m/s]
+    # Peg-insertion specific (ignored by ContactToolEnv)
+    peg_radius: float = 0.010    # peg radius [m]
+    hole_radius: float = 0.012   # hole radius at work surface [m]
+    target_depth: float = 0.040  # required insertion depth [m]
+    wall_stiffness: float = 8000.0  # hole-wall spring constant [N/m]
 
 
 @dataclass(frozen=True)
@@ -36,6 +41,7 @@ class Scenario:
 
     scenario_id: str
     seed: int
+    task_type: str = "nailing"
     params: DynamicsParams = field(default_factory=DynamicsParams)
     start: tuple[float, float] = (0.0, 0.2)
     target_x: float = 0.3

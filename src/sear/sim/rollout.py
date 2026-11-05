@@ -8,6 +8,7 @@ import numpy as np
 
 from sear.core.trajectory import Trajectory
 from sear.sim.env import ContactToolEnv, Observation
+from sear.sim.peg_env import PegEnv
 from sear.sim.scenario import Scenario
 
 
@@ -46,7 +47,8 @@ def run_episode(
     whether each call carried an operator authorization is logged for the
     contract's operational constraints.
     """
-    env = ContactToolEnv(scenario, mode=mode)
+    env = (PegEnv(scenario, mode=mode) if getattr(scenario, "task_type", "nailing") == "peg_insertion"
+           else ContactToolEnv(scenario, mode=mode))
     obs = env.reset()
     policy.reset()
     if runtime is not None:
