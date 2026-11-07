@@ -18,7 +18,7 @@ from typing import Any
 
 import numpy as np
 
-METHOD_ORDER = ["B0", "B1", "B2", "B3", "SPE"]
+METHOD_ORDER = ["B0", "B1", "B1R", "B2", "B3", "SPE"]
 
 # Metrics to aggregate: (summary_key_or_callable, display_name, format_spec)
 # format_spec: "pct" = percentage, "int" = integer, "float2" = 2 decimal, "ratio" = n/m
