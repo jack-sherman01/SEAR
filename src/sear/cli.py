@@ -134,7 +134,7 @@ def cmd_aggregate(args: argparse.Namespace) -> int:
         return 1
     print_aggregate_report(stats)
     # shaded generation-curve figure
-    out_dir = Path(args.run_dirs[0]).parent / "figures_multiseed"
+    out_dir = Path(args.run_dirs[0]) / "figures_multiseed"
     try:
         figs = generate_multiseed_figures(args.run_dirs, out_dir)
         print(f"\nfigures: {', '.join(str(f) for f in figs)}")
@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("run", help="run an evolution study")
     p.add_argument("config")
-    p.add_argument("--methods", nargs="+", choices=sorted(METHODS))
+    p.add_argument("--methods", nargs="+", choices=sorted(METHODS), metavar="METHOD")
     p.add_argument("--out", type=Path)
     p.add_argument("--seed", type=int, default=None, help="override config seed")
     p.set_defaults(func=cmd_run)

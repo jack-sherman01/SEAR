@@ -1,0 +1,41 @@
+# Rollback demonstration: B1 (RTA, no verification) vs B1R (RTA + rollback).
+# B1 admits all unsafe proposals; B1R detects deployment violations and reverts.
+# Adversarial injection rate = 0.6 ensures many unsafe proposals are admitted,
+# and rollback_violation_threshold = 0.3 triggers rollback quickly.
+# Run:  sear run configs/experiments/rollback_demo.yaml --out runs/rollback_demo
+name: rollback_demo
+contract: configs/contracts/nailing_surrogate.yaml
+seed: 0
+generations: 12
+trials_per_generation: 8
+benchmark_size: 12
+rollback_violation_threshold: 0.3
+deploy_mode: low_energy
+
+genesis:
+  policy: approach_press
+  params: {}
+  tools: [gripper.hold, fastener.drive]
+
+proposer:
+  n_candidates: 6
+  trials: 4
+  step: 0.3
+
+adversary:
+  schedule:
+    1: aggressive
+    3: aggressive
+    5: aggressive
+    7: aggressive
+    9: aggressive
+    11: aggressive
+  rate: 0.6               # 60% random adversarial on unscheduled generations
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 60
+  certificate_mode: filtered
+
+methods: [B1, B1R]

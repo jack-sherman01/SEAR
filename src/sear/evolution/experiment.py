@@ -38,6 +38,7 @@ from sear.verification.pipeline import default_pipeline
 METHODS: dict[str, dict[str, Any]] = {
     "B0": dict(use_verification=False, use_runtime_assurance=False, use_lineage=False, use_rollback=False),
     "B1": dict(use_verification=False, use_runtime_assurance=True, use_lineage=False, use_rollback=False),
+    "B1R": dict(use_verification=False, use_runtime_assurance=True, use_lineage=False, use_rollback=True),
     "B2": dict(use_verification=True, use_runtime_assurance=False, use_lineage=False, use_rollback=False),
     "B3": dict(use_verification=False, use_runtime_assurance=True, use_lineage=False, use_rollback=False,
                safe_rl=True),
