@@ -1,0 +1,35 @@
+name: nsim_10
+contract: configs/contracts/nailing_surrogate.yaml
+seed: 0
+generations: 12
+trials_per_generation: 8
+benchmark_size: 12
+deploy_mode: low_energy
+
+genesis:
+  policy: approach_press
+  params: {}
+  tools: [gripper.hold, fastener.drive]
+
+proposer:
+  n_candidates: 6
+  trials: 4
+  step: 0.3
+
+adversary:
+  schedule:
+    1: aggressive
+    3: aggressive
+    5: aggressive
+    7: aggressive
+    9: aggressive
+    11: aggressive
+  rate: 0.1
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 10
+  certificate_mode: filtered
+
+methods: [SPE]

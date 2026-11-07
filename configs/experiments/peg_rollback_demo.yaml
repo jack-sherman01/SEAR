@@ -1,0 +1,41 @@
+# Rollback demonstration on peg insertion: B1 (RTA, no verification) vs B1R (RTA + rollback).
+# Key question: can rollback salvage peg insertion given that the genesis policy is already marginally unsafe?
+# High adversarial rate + low threshold ensure rollback is triggered quickly.
+# Run:  sear run configs/experiments/peg_rollback_demo.yaml --out runs/peg_rollback_demo
+name: peg_rollback_demo
+task: peg_insertion
+contract: configs/contracts/peg_insertion.yaml
+seed: 0
+generations: 12
+trials_per_generation: 8
+benchmark_size: 12
+rollback_violation_threshold: 0.3
+deploy_mode: low_energy
+
+genesis:
+  policy: peg_insert
+  params: {}
+  tools: [gripper.hold, probe.insert]
+
+proposer:
+  n_candidates: 6
+  trials: 4
+  step: 0.3
+
+adversary:
+  schedule:
+    1: aggressive
+    3: aggressive
+    5: aggressive
+    7: aggressive
+    9: aggressive
+    11: aggressive
+  rate: 0.6
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 60
+  certificate_mode: filtered
+
+methods: [B1, B1R]
