@@ -98,15 +98,15 @@ Both attack types and schedules are configurable per experiment YAML.
 
 ## Experimental results
 
-Multi-seed aggregates (5 seeds × 20 generations, nailing; peg insertion):
+Multi-seed aggregates (5 seeds × 10 generations, nailing; peg insertion):
 
 ```
          unsafe adm.(raw)  unsafe adm.(dep)  FAR(raw)  FAR(dep)  dep.viol  ID succ  OOD succ  ID mret
-B0              43/43             43/43        1.00      1.00      65.6     1.00     1.00     -33.0
-B1              43/43             15/15        1.00      1.00      40.0     1.00     0.52      0.93
-B2               0/28              0/28        0.00      0.00       0.0     1.00     1.00      0.96
-B3              40/40             17/17        1.00      1.00      40.0     1.00     0.53      0.93
-SPE             10/40              0/15        0.23      0.00       0.0     1.00     0.87      0.98   ← nailing
+B0              43/43             34/34        1.00      1.00      65.6     1.00     1.00     -33.0
+B1              43/43             12/12        1.00      1.00      40.0     1.00     0.52      0.93
+B2               0/28              0/22        0.00      0.00       0.0     1.00     1.00      0.96
+B3              40/40             14/14        1.00      1.00      40.0     1.00     0.53      0.93
+SPE             10/40              0/12       0.23      0.00       0.0     1.00     0.87      0.98   ← nailing
 SPE              0/10              0/15        0.00      0.00       0.0     1.00     0.90      1.00   ← peg
 ```
 
