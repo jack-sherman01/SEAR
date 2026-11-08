@@ -205,7 +205,9 @@ def latex_table(stats: dict, caption: str = "", label: str = "tab:results") -> s
         r"\centering",
         r"\small",
         r"\setlength{\tabcolsep}{4pt}",
-        r"\caption{" + (caption or r"Multi-seed results (mean$\pm$std over 5 seeds).") + "}",
+        r"\caption{" + (caption or (
+            rf"Multi-seed results (mean$\pm$std over {max((stats[m].get('_n_seeds', 1) for m in stats), default=1)} seeds)."
+        )) + "}",
         rf"\label{{{label}}}",
         rf"\begin{{tabular}}{{{col_spec}}}",
         r"\toprule",
