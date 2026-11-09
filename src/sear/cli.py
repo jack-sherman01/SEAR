@@ -5,6 +5,7 @@
     sear plot RUN_DIR                                  generate figures from a finished run
     sear render RUN_DIR [--n-episodes N] [--fps F]     render trajectory videos
     sear aggregate RUN_DIR... [--latex] [--out F]      aggregate multi-seed results
+    sear nsim-plot --budgets 10 30 60 120 --dirs-10 runs/... --dirs-30 ... --out fig.pdf
     sear sign-contract CONTRACT.yaml [--key-file K]    sign a safety contract (safety authority)
     sear verify-ledger LEDGER.jsonl                    check an evidence ledger's hash chain
 """
@@ -150,6 +151,21 @@ def cmd_aggregate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_nsim_plot(args: argparse.Namespace) -> int:
+    from sear.viz.plots import plot_nsim_sweep
+    # dirs are provided in order matching budgets; split evenly or accept all dirs per budget
+    # Simple interface: --budgets 10 30 60 120 --dirs d0 d1 d2 ... (all dirs, assigned to budgets by order)
+    n = len(args.budgets)
+    all_dirs = args.dirs
+    chunk = len(all_dirs) // n if n else len(all_dirs)
+    seed_dirs = {}
+    for i, b in enumerate(args.budgets):
+        seed_dirs[b] = all_dirs[i * chunk:(i + 1) * chunk]
+    out = plot_nsim_sweep(args.budgets, seed_dirs, args.out)
+    print(f"figure: {out}")
+    return 0
+
+
 def cmd_sign(args: argparse.Namespace) -> int:
     sig = write_signed(args.contract, load_key(key_file=args.key_file), key_id=args.key_id)
     print(f"signed -> {sig}")
@@ -205,6 +221,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--caption", default="", help="LaTeX table caption")
     p.add_argument("--label", default="tab:results", help="LaTeX table label")
     p.set_defaults(func=cmd_aggregate)
+
+    p = sub.add_parser("nsim-plot", help="plot n_sim sweep: admit rate and FAR vs budget")
+    p.add_argument("--budgets", nargs="+", type=int, required=True, metavar="N")
+    p.add_argument("--out", default="runs/figures/nsim_sweep.pdf")
+    for b_help in [("dirs", "space-separated run dirs for all budgets in order")]:
+        p.add_argument(f"--{b_help[0]}", nargs="+", required=True, metavar="DIR", help=b_help[1])
+    p.set_defaults(func=cmd_nsim_plot)
 
     p = sub.add_parser("sign-contract", help="sign a safety contract")
     p.add_argument("contract")

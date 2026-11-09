@@ -230,3 +230,70 @@ def generate_multiseed_figures(run_dirs: list[str | Path], out_dir: str | Path) 
     fig.savefig(out, bbox_inches="tight", dpi=150)
     plt.close(fig)
     return [out]
+
+
+def plot_nsim_sweep(
+    budgets: list[int],
+    seed_dirs: dict[int, list[str | Path]],
+    out_path: str | Path,
+) -> Path:
+    """Plot admission rate and FAR as a function of n_sim budget.
+
+    Args:
+        budgets: list of n_sim values, e.g. [10, 30, 60, 120]
+        seed_dirs: {n_sim: [run_dir_s0, run_dir_s1, ...]}
+        out_path: output PDF path
+    """
+    import json, math
+    from sear.viz.aggregate import aggregate_runs
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    admit_means, admit_stds = [], []
+    far_raw_means, far_raw_stds = [], []
+    far_dep_means, far_dep_stds = [], []
+
+    for b in budgets:
+        dirs = seed_dirs.get(b, [])
+        if not dirs:
+            admit_means.append(math.nan); admit_stds.append(0)
+            far_raw_means.append(math.nan); far_raw_stds.append(0)
+            far_dep_means.append(0); far_dep_stds.append(0)
+            continue
+        stats = aggregate_runs(dirs)
+        spe = stats.get("SPE", {})
+        admit_means.append(spe.get("admit", {}).get("mean", math.nan))
+        admit_stds.append(spe.get("admit", {}).get("std", 0))
+        far_raw_means.append(spe.get("FAR(raw)", {}).get("mean", math.nan))
+        far_raw_stds.append(spe.get("FAR(raw)", {}).get("std", 0))
+        far_dep_means.append(spe.get("FAR(dep)", {}).get("mean", 0.0))
+        far_dep_stds.append(spe.get("FAR(dep)", {}).get("std", 0))
+
+    xs = list(range(len(budgets)))
+    labels = [str(b) for b in budgets]
+
+    fig, ax = plt.subplots(figsize=(5.5, 3.5))
+    ax.errorbar(xs, admit_means, yerr=admit_stds, fmt="o-", capsize=4,
+                color="#4CAF50", label="Admit rate", linewidth=1.8, markersize=5)
+    ax.errorbar(xs, far_raw_means, yerr=far_raw_stds, fmt="s--", capsize=4,
+                color="#FF9800", label="FAR(raw)", linewidth=1.5, markersize=5)
+    ax.errorbar(xs, far_dep_means, yerr=far_dep_stds, fmt="^:", capsize=4,
+                color="#F44336", label="FAR(dep)", linewidth=1.5, markersize=5)
+    ax.axvline(x=1.5, color="gray", linestyle="--", linewidth=0.9, alpha=0.6)
+    ax.text(1.55, 0.95, "stable regime →", fontsize=7, color="gray",
+            va="top", transform=ax.get_xaxis_transform())
+    ax.set_xticks(xs)
+    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_xlabel(r"$n_{\mathrm{sim}}$ (verification budget)", fontsize=9)
+    ax.set_ylabel("Rate (mean ± 1 std, 5 seeds)", fontsize=9)
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_title(r"SPE: verification budget sweep", fontsize=10)
+    ax.legend(fontsize=8, loc="center right")
+    ax.grid(True, alpha=0.25)
+    ax.tick_params(labelsize=8)
+
+    plt.tight_layout()
+    fig.savefig(out_path, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+    return out_path

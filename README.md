@@ -73,6 +73,12 @@ sear aggregate runs/nailing_default runs/nailing_default_s1 runs/nailing_default
 sear aggregate ... --latex --out runs/nailing_table.tex       # LaTeX table for paper
 sear render runs/nailing_default --n-episodes 3               # trajectory MP4 videos
 sear verify-ledger runs/nailing_default/SPE/ledger.jsonl      # audit evidence chain
+sear nsim-plot --budgets 10 30 60 120 \
+  --dirs runs/nsim_ablation_10 runs/nsim_10_s{1..4} \
+         runs/nsim_ablation_30 runs/nsim_30_s{1..4} \
+         runs/nsim_ablation_60 runs/nsim_ablation_60_s{1..3} runs/nsim_60_s4 \
+         runs/nsim_ablation_120 runs/nsim_120_s{1..4} \
+  --out runs/figures/nsim_sweep.pdf                            # budget sweep figure
 ```
 
 ## Methods compared
