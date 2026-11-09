@@ -1,6 +1,6 @@
 """WP3: runtime assurance and safe fallback."""
 
-from sear.runtime.assurance import RTAMode, RuntimeAssurance, RuntimeAssuranceConfig
+from sear.runtime.assurance import RTAMode, RuntimeAssurance, RuntimeAssuranceConfig, domain_from_contract
 from sear.runtime.cbf import (
     Barrier,
     HalfPlaneBarrier,
@@ -28,5 +28,6 @@ __all__ = [
     "SpeedBarrier",
     "SphereAvoidBarrier",
     "barriers_from_contract",
+    "domain_from_contract",
     "solve_min_norm_qp",
 ]

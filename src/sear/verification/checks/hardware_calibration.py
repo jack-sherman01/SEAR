@@ -95,7 +95,10 @@ class HardwareCalibrationCheck(Check):
             )
 
         # Run hardware trials on the in-distribution benchmark subset
-        scenarios = list(ctx.benchmark.get("in_distribution", []))[: self.config.n_trials]
+        try:
+            scenarios = list(ctx.benchmark["in_distribution"])[: self.config.n_trials]
+        except (KeyError, TypeError):
+            scenarios = []
         if not scenarios:
             return self.result(Verdict.UNKNOWN, "no in-distribution scenarios available for hardware trials",
                                metrics={"skipped": True})
