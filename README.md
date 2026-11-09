@@ -143,4 +143,4 @@ Everything it proposes passes through the same verifier, runtime assurance, and 
 
 ## Status
 
-Simulation complete (all baselines, two tasks, 5 seeds, rollback demo, n_sim ablation, 45+ MP4 trajectory videos, LaTeX tables). Real-robot integration (`sear.robots.RobotInterface`) is the next milestone.
+Simulation complete (all baselines, two tasks, 5 seeds each, rollback demo, n_sim ablation 5 seeds × 4 budgets, 138 MP4 trajectory videos, LaTeX tables, n_sim sweep figure). Real-robot integration (`sear.robots.RobotInterface`) is the next milestone — planned experiments on Franka Panda (nailing) and UR5e (peg insertion).
