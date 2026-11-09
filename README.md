@@ -12,7 +12,7 @@ A robot may be safe in generation *k* and unsafe after an apparently beneficial 
 - SPE achieves **FAR(dep) = 0.00** and **zero deployment violations** at every seed on both benchmark tasks
 - Neither verification alone (B2) nor runtime assurance alone (B1/B3) achieves this — their combination is necessary
 - Rollback eliminates dense violation accumulation on nailing (32→0 violations, 2 reverts) but cannot recover sparse OOD margin erosion on peg insertion
-- Verification budget phase transition at *n*_sim ≈ 60: below this point the verifier is over-conservative; above it, safety and capability are both maintained
+- Verification budget transition between *n*_sim = 10 (zero admission) and *n*_sim = 30 (marginal, 18%±11% admission, high variance); *n*_sim ≥ 60 is stable (27%±3%) with FAR(dep) = 0.00 at all seeds
 
 ## Concepts
 
