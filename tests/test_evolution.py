@@ -106,4 +106,4 @@ def test_cli_verify_ledger(tmp_path, capsys):
 
 
 def test_all_methods_defined():
-    assert set(METHODS) == {"B0", "B1", "B2", "B3", "SPE"}
+    assert set(METHODS) == {"B0", "B1", "B1R", "B2", "B3", "SPE"}

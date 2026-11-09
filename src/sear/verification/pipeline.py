@@ -16,6 +16,7 @@ from sear.verification.checks import (
     BarrierCertificateCheck,
     Check,
     EvaluatorChangeCheck,
+    HardwareCalibrationCheck,
     IntegrityCheck,
     InterfaceCheck,
     PermissionCheck,
@@ -62,7 +63,8 @@ class VerificationPipeline:
 
 
 def default_pipeline(*, statistical_with_runtime: bool = False, epsilon: float = 0.1, confidence: float = 0.9,
-                     n_sim: int = 60, certificate_mode: str = "filtered", fail_fast: bool = True) -> VerificationPipeline:
+                     n_sim: int = 60, certificate_mode: str = "filtered", fail_fast: bool = True,
+                     hardware_runner=None) -> VerificationPipeline:
     """The five-step verifier of the proposal.
 
     * nominal regression (in-distribution) and severe-event simulation test the
@@ -84,6 +86,7 @@ def default_pipeline(*, statistical_with_runtime: bool = False, epsilon: float =
                                   with_runtime=statistical_with_runtime, name="replay_regression_adversarial"),
             RandomizedSimulationCheck(n=n_sim),
             BarrierCertificateCheck(mode=certificate_mode, mandatory=False),
+            HardwareCalibrationCheck(hardware_runner=hardware_runner),
             StatisticalSafetyCheck(epsilon=epsilon, confidence=confidence, n=n_sim,
                                    with_runtime=statistical_with_runtime),
         ],
