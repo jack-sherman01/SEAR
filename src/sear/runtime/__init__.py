@@ -10,13 +10,23 @@ from sear.runtime.cbf import (
     barriers_from_contract,
 )
 from sear.runtime.fallback import SafeStopController
+from sear.runtime.latency import (
+    AdaptiveLatencyConfig,
+    LatencyMeasurement,
+    LatencyMonitor,
+    apply_latency_compensation,
+    tighten_margins,
+)
 from sear.runtime.monitor import CertifiedDomain, MonitorStatus, RuntimeMonitor
 from sear.runtime.qp import QPResult, solve_min_norm_qp
 
 __all__ = [
+    "AdaptiveLatencyConfig",
     "Barrier",
     "CertifiedDomain",
     "HalfPlaneBarrier",
+    "LatencyMeasurement",
+    "LatencyMonitor",
     "MonitorStatus",
     "NominalModel",
     "QPResult",
@@ -27,7 +37,9 @@ __all__ = [
     "SafeStopController",
     "SpeedBarrier",
     "SphereAvoidBarrier",
+    "apply_latency_compensation",
     "barriers_from_contract",
     "domain_from_contract",
     "solve_min_norm_qp",
+    "tighten_margins",
 ]

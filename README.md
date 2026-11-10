@@ -22,7 +22,7 @@ A robot may be safe in generation *k* and unsafe after an apparently beneficial 
 | update operator z_{k+1} = U(z_k, Δ_k) | `sear.core.apply_update`, `CandidateArtifact` |
 | immutable safety contract 𝔠 (WP1) | `sear.contracts` — YAML + HMAC signature, `SafetyOracle` |
 | Admit(z_k, z_{k+1}) ⇒ Evidence ⊨ 𝔠 (WP2) | `sear.verification` — 5-tier pipeline → `Evidence` |
-| runtime assurance, CBF-QP, fallback (WP3) | `sear.runtime` — `RuntimeAssurance`, `domain_from_contract` |
+| runtime assurance, CBF-QP, fallback (WP3) | `sear.runtime` — `RuntimeAssurance`, `LatencyMonitor`, `domain_from_contract` |
 | evidence lineage, retrieval, rollback (WP4) | `sear.lineage` — hash-chained ledger |
 | multi-generation protocol and baselines | `sear.evolution` — `EvolutionLoop`, B0–B3, B1R, SPE |
 | figures, videos, aggregate tables | `sear.viz` — `plots`, `render`, `aggregate` |
@@ -39,14 +39,13 @@ src/sear/
   sim/           planar contact-rich simulators: nailing (ContactToolEnv) and peg insertion (PegEnv)
   policies/      parametric controllers (θ_k): ApproachPress (nailing), PegInsert (peg)
   benchmark/     frozen, content-pinned suites: in-dist / held-out / OOD / adversarial
-  runtime/       latency-aware CBF-QP safety filter, runtime monitor, safe stop
-  verification/  5 tiers: integrity, permissions, replay regression, randomised sim,
-                 barrier certificate + statistical bound → admit / restrict / reject
+  runtime/       latency-aware CBF-QP safety filter, LatencyMonitor, runtime monitor, safe stop
+  verification/  5 tiers + Tier 3.5 sim-to-real calibration → admit / restrict / reject
   lineage/       append-only hash-chained ledger, safety-regression retrieval, rollback
   metrics/       episode & suite metrics, Clopper–Pearson / Wilson / Poisson bounds
   evolution/     task evaluator, proposers (greedy, Safe-RL, adversarial, external/LLM), loop
   viz/           generation-curve plots, summary bars, trajectory MP4 videos, aggregate tables
-  robots/        hardware interface stub for real-manipulator experiments
+  robots/        RobotInterface ABC; MockRobot (sim wrapper), FrankaRobot stub, UR5eRobot stub
   cli.py         `sear` command
 configs/
   contracts/     signed safety contracts (nailing surrogate, peg insertion)
@@ -61,7 +60,7 @@ tests/
 uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
 source .venv/bin/activate
 
-pytest                                                        # 64 tests, all pass
+pytest                                                        # 89 tests, all pass
 sear run configs/experiments/smoke.yaml                       # ~20 s sanity run
 sear run configs/experiments/nailing_default.yaml             # nailing, all methods, seed 0
 sear run configs/experiments/peg_insertion.yaml               # peg insertion, all methods, seed 0
@@ -143,4 +142,4 @@ Everything it proposes passes through the same verifier, runtime assurance, and 
 
 ## Status
 
-Simulation complete (all baselines, two tasks, 5 seeds each, rollback demo, n_sim ablation 5 seeds × 4 budgets, 138 MP4 trajectory videos, LaTeX tables, n_sim sweep figure). Real-robot integration (`sear.robots.RobotInterface`) is the next milestone — planned experiments on Franka Panda (nailing) and UR5e (peg insertion).
+Simulation complete (all baselines, two tasks, 5 seeds each, rollback demo, n_sim ablation 5 seeds × 4 budgets, 138 MP4 trajectory videos, LaTeX tables, n_sim sweep figure). Hardware infrastructure complete: `HardwareCalibrationCheck` (Tier 3.5), `LatencyMonitor` with adaptive CBF-margin tightening, `MockRobot`/`FrankaRobot`/`UR5eRobot` driver stubs, and an operational experiment protocol (`private/hardware_protocol.md`). Next milestone: physical experiments on Franka Panda (nailing) and UR5e (peg insertion).
