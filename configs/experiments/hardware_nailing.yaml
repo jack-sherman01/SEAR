@@ -1,0 +1,75 @@
+# Hardware evolution study: nailing on Franka Emika Panda.
+#
+# Mirrors nailing_default.yaml but with conservative hardware settings and
+# a `hardware:` section consumed by run_hardware_episode() rather than
+# the simulator.
+#
+# Safety prerequisites (see private/hardware_protocol.md §2–§5):
+#   - Safety authority has signed the contract with the production key
+#   - SEAR_CONTRACT_KEY is NOT set in the experiment shell
+#   - Hardware calibration (§3) and latency warm-up (§5) are complete
+#   - Per-generation checklist (§4) is signed off in the lab notebook
+#
+# Run (simulation smoke-test, MockRobot):
+#   sear run configs/experiments/hardware_nailing.yaml --out runs/hw_nailing_mock
+#
+# Run (real hardware — requires FrankaRobot integration):
+#   Edit hardware.robot_ip below, then run the same command with the
+#   production driver wired into run_experiment().
+
+name: hardware_nailing
+contract: configs/contracts/nailing_surrogate.yaml
+# contract_key_file: /secure/hardware/contract.key   # production key; never commit
+seed: 0
+generations: 10
+trials_per_generation: 8
+benchmark_size: 12
+rollback_violation_threshold: 0.2
+deploy_mode: low_energy
+
+genesis:
+  policy: approach_press
+  params: {}
+  tools: [gripper.hold, fastener.drive]
+
+proposer:
+  n_candidates: 4          # fewer candidates than sim; each trial costs ~1 min
+  trials: 4
+  step: 0.2                # smaller step: conservative on hardware
+
+adversary:
+  schedule:
+    3: evaluator_tamper
+    5: tool_escalation
+    7: protected_write
+    8: aggressive
+  rate: 0.0
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 60                # simulation tiers (Tier 1–4); hardware Tier 3.5 below
+  certificate_mode: filtered
+
+# Tier 3.5: sim-to-real calibration (HardwareCalibrationCheck)
+calibration:
+  n_trials: 5              # hardware rollouts before admitting a candidate
+  tolerance_force: 0.25    # max RMS residual as fraction of predicted peak force
+  tolerance_position: 0.02 # max RMS position residual (metres)
+  max_violation_fraction: 0.0  # any safety violation → FAIL immediately
+
+# Hardware-specific control loop parameters (used by run_hardware_episode)
+hardware:
+  robot: franka            # "franka" | "mock"  ("mock" uses MockRobot for testing)
+  robot_ip: "172.16.0.2"  # Franka Control Interface IP; ignored when robot=mock
+  dt: 0.002               # control period (s) — 500 Hz
+  max_steps: 2000          # hard episode step limit (= 4 s at 500 Hz)
+
+  latency:
+    window: 50             # rolling window for mean latency estimate
+    alpha: 1.6             # barrier decay rate (damping/mass for nailing model)
+    margin_min: 0.0005     # minimum extra CBF margin (m)
+    margin_max: 0.010      # maximum extra CBF margin (m); QP conservatism cap
+    fallback_latency_ms: 20.0  # trigger safe_stop() if mean latency exceeds this
+
+methods: [B1, B2, SPE]    # B0 (no safety) and B3 (Safe-RL) excluded from hardware

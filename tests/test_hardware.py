@@ -336,3 +336,147 @@ def test_ur5e_stub_raises():
         r.safe_stop()
     with pytest.raises(NotImplementedError):
         r.set_mode("guarded")
+
+
+# ---------------------------------------------------------------------------
+# run_hardware_episode
+# ---------------------------------------------------------------------------
+
+def test_run_hardware_episode_basic():
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+
+    robot = MockRobot()
+    policy = ApproachPressPolicy()
+    traj = run_hardware_episode(robot, policy, max_steps=20, dt=0.002)
+
+    assert len(traj) == 20
+    assert "ee_pos" in traj.signals
+    assert "ee_speed" in traj.signals
+    assert "contact_force" in traj.signals
+    assert "tool_slip" in traj.signals
+    assert "min_distance" in traj.signals
+    assert traj.info["n_steps"] == 20
+    assert not traj.info["safe_stopped"]
+
+
+def test_run_hardware_episode_with_monitor():
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+    from sear.runtime import LatencyMonitor, AdaptiveLatencyConfig
+
+    robot = MockRobot()
+    monitor = LatencyMonitor(AdaptiveLatencyConfig(window=10))
+    traj = run_hardware_episode(robot, ApproachPressPolicy(),
+                                monitor=monitor, max_steps=15, dt=0.002)
+
+    assert "latency_ms" in traj.signals
+    assert len(traj.signals["latency_ms"]) == 15
+    assert "latency" in traj.info
+    assert traj.info["latency"]["n_samples"] == 10  # window=10 caps the deque
+
+
+def test_run_hardware_episode_with_runtime():
+    from sear.contracts import Contract
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+    from sear.runtime import RuntimeAssurance
+
+    contract = Contract.from_yaml(CONTRACT_YAML)
+    robot = MockRobot()
+    rta = RuntimeAssurance(contract)
+    traj = run_hardware_episode(robot, ApproachPressPolicy(),
+                                runtime=rta, max_steps=20, dt=0.002)
+
+    assert "rta_mode" in traj.signals
+    assert "runtime" in traj.info
+
+
+def test_run_hardware_episode_with_monitor_and_runtime():
+    from sear.contracts import Contract
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+    from sear.runtime import RuntimeAssurance, LatencyMonitor
+
+    contract = Contract.from_yaml(CONTRACT_YAML)
+    robot = MockRobot()
+    rta = RuntimeAssurance(contract)
+    monitor = LatencyMonitor()
+    traj = run_hardware_episode(robot, ApproachPressPolicy(),
+                                runtime=rta, monitor=monitor,
+                                max_steps=20, dt=0.002)
+
+    # margin should have been updated each step (not just at start)
+    assert traj.info["n_steps"] == 20
+    assert "latency" in traj.info and "runtime" in traj.info
+
+
+def test_run_hardware_episode_safe_stop_on_fallback():
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+    from sear.runtime import LatencyMonitor, AdaptiveLatencyConfig
+
+    robot = MockRobot()
+    # trigger fallback immediately: fallback_latency_s = 0 means any latency triggers
+    monitor = LatencyMonitor(AdaptiveLatencyConfig(fallback_latency_s=0.0))
+    traj = run_hardware_episode(robot, ApproachPressPolicy(),
+                                monitor=monitor, max_steps=100, dt=0.002)
+
+    assert traj.info["safe_stopped"]
+    assert robot.stopped
+    assert traj.info["n_steps"] < 100  # terminated early
+
+
+def test_run_hardware_episode_safe_stop_on_interlock():
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+
+    robot = MockRobot()
+    robot.interlock.engage()
+    traj = run_hardware_episode(robot, ApproachPressPolicy(),
+                                max_steps=50, dt=0.002)
+
+    assert traj.info["safe_stopped"]
+    assert traj.info["n_steps"] <= 2  # interlock detected on first step
+
+
+def test_run_hardware_episode_done_fn():
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+
+    robot = MockRobot()
+    traj = run_hardware_episode(robot, ApproachPressPolicy(),
+                                done_fn=lambda obs, step: step >= 7,
+                                max_steps=50, dt=0.002)
+
+    assert traj.info["n_steps"] == 8  # done_fn fires at step=7, loop breaks after record
+
+
+def test_run_hardware_episode_extra_signals():
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+
+    robot = MockRobot()
+    traj = run_hardware_episode(
+        robot, ApproachPressPolicy(),
+        extra_signals=lambda obs, step: {"lateral_force": 0.5 * obs.contact_force},
+        max_steps=10, dt=0.002,
+    )
+
+    assert "lateral_force" in traj.signals
+    assert len(traj.signals["lateral_force"]) == 10
+
+
+def test_run_hardware_episode_contract_evaluable():
+    """Trajectory signals must be sufficient for contract evaluation."""
+    from sear.contracts import Contract
+    from sear.robots import MockRobot, run_hardware_episode
+    from sear.policies import ApproachPressPolicy
+
+    contract = Contract.from_yaml(CONTRACT_YAML)
+    robot = MockRobot()
+    traj = run_hardware_episode(robot, ApproachPressPolicy(), max_steps=50, dt=0.002)
+    result = contract.evaluate(traj)
+    # Result must not be entirely UNKNOWN (signals present)
+    verdicts = {cr.verdict.value for cr in result.results}
+    assert "unknown" not in verdicts or "pass" in verdicts or "fail" in verdicts

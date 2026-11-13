@@ -1,0 +1,79 @@
+# Hardware evolution study: peg insertion on Universal Robots UR5e.
+#
+# Mirrors peg_insertion.yaml but with conservative hardware settings and
+# a `hardware:` section consumed by run_hardware_episode().
+#
+# Safety prerequisites (see private/hardware_protocol.md §2–§5):
+#   - Safety authority has signed the peg_insertion contract with the production key
+#   - SEAR_CONTRACT_KEY is NOT set in the experiment shell
+#   - Hardware calibration (§3) and latency warm-up (§5) are complete
+#   - Per-generation checklist (§4) is signed off in the lab notebook
+#
+# Run (simulation smoke-test, MockRobot):
+#   sear run configs/experiments/hardware_peg.yaml --out runs/hw_peg_mock
+#
+# Run (real hardware — requires UR5eRobot integration):
+#   Edit hardware.robot_ip below, then run with the production driver wired in.
+
+name: hardware_peg
+task: peg_insertion
+contract: configs/contracts/peg_insertion.yaml
+# contract_key_file: /secure/hardware/contract.key   # production key; never commit
+seed: 0
+generations: 10
+trials_per_generation: 8
+benchmark_size: 12
+rollback_violation_threshold: 0.2
+deploy_mode: low_energy
+
+genesis:
+  policy: peg_insert
+  params: {}
+  tools: [gripper.hold, probe.insert]
+
+proposer:
+  n_candidates: 4          # fewer than sim; peg hardware trial ≈ 1–2 min
+  trials: 4
+  step: 0.2
+
+adversary:
+  schedule:
+    3: evaluator_tamper
+    5: memory_poison
+    7: protected_write
+    8: aggressive
+  rate: 0.0
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 60
+  certificate_mode: filtered
+
+# Tier 3.5: sim-to-real calibration (HardwareCalibrationCheck)
+calibration:
+  n_trials: 5
+  tolerance_force: 0.25    # fraction of predicted peak lateral force
+  tolerance_position: 0.02 # metres RMS
+  max_violation_fraction: 0.0
+
+# Hardware-specific control loop parameters (used by run_hardware_episode)
+hardware:
+  robot: ur5e              # "ur5e" | "mock"
+  robot_ip: "192.168.1.100"  # UR5e controller IP; ignored when robot=mock
+  dt: 0.002               # control period (s) — 500 Hz (UR5e RTDE supports this)
+  max_steps: 3000          # hard episode step limit (= 6 s at 500 Hz)
+                           # peg insertion typically completes in 2–4 s
+
+  latency:
+    window: 50
+    alpha: 1.0             # lighter barrier decay for peg (simpler contact model)
+    margin_min: 0.0005
+    margin_max: 0.008      # tighter cap for peg: lateral clearance is small
+    fallback_latency_ms: 20.0
+
+  # extra_signals injected by the hardware driver for peg-specific contract signals
+  # lateral_force: Fx (horizontal F/T reading) — must be provided by UR5eRobot.observe()
+  # insertion_depth: Fz-integrated depth estimate or encoder reading
+
+methods: [B1, B2, SPE]    # B0 and B3 excluded from hardware
