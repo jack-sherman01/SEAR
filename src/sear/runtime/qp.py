@@ -8,9 +8,6 @@ Performance features
 --------------------
 * Warm-starting: pass the previous step's dual solution as ``lam_init``; for
   smooth trajectories this reduces iterations from O(100) to O(5).
-* Primal-feasibility early exit: terminates as soon as the primal iterate
-  satisfies all constraints, which typically occurs well before the dual
-  variables converge to tight tolerance.
 * Default ``max_iter`` is 150 (was 500); sufficient for cold-start convergence
   on the 2-D/6-constraint problems used here (~0.24 ms/iter in CPython).
 """
@@ -95,11 +92,6 @@ def solve_min_norm_qp(
 
         # Dual convergence check
         if np.max(np.abs(lam - prev)) < tol * (1.0 + np.max(np.abs(lam))):
-            break
-
-        # Primal-feasibility early exit (cheap for small m)
-        u = u_ref - Hinv @ M.T @ lam
-        if np.all(A @ u >= b - feas_tol):
             break
 
     u = u_ref - Hinv @ M.T @ lam
