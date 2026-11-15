@@ -52,6 +52,7 @@ def run_hardware_episode(
     monitor: LatencyMonitor | None = None,
     max_steps: int = 1000,
     dt: float = 0.002,
+    mode: str = "hardware",
     done_fn: Callable[[Observation, int], bool] | None = None,
     extra_signals: Callable[[Observation, int], dict[str, float]] | None = None,
     allowed_tools: Iterable[str] | None = None,
@@ -98,7 +99,7 @@ def run_hardware_episode(
         from dataclasses import replace as _replace
         base_rta_cfg = _replace(runtime.config)
 
-    rec = TrajectoryRecorder(dt=dt, mode="hardware")
+    rec = TrajectoryRecorder(dt=dt, mode=mode)
     allowed = None if allowed_tools is None else set(allowed_tools)
 
     # Log tool calls (first step only, mirrors sim behaviour)

@@ -232,6 +232,7 @@ class EvolutionLoop:
                     robot, policy, runtime=rt, monitor=monitor,
                     done_fn=done_fn, dt=self.hardware_dt,
                     max_steps=self.hardware_max_steps,
+                    mode=mode,
                     allowed_tools=state.tools.allowed,
                 )
                 if "latency" in traj.info:
