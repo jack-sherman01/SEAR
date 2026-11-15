@@ -123,6 +123,10 @@ def run_hardware_episode(
         if not safe_stopped:
             robot.command(u)
 
+        # Read post-command observation for recording and termination checks.
+        # Policy and filter used pre-command obs; recording captures result of action.
+        post_obs = robot.observe()
+
         # Latency tracking and adaptive CBF-margin update
         if monitor is not None:
             monitor.record(t_sense, t_cmd, dt=dt)
@@ -143,36 +147,36 @@ def run_hardware_episode(
             robot.safe_stop()
             safe_stopped = True
 
-        # Record signals derivable from observation
-        speed = float(np.linalg.norm(obs.velocity))
+        # Record post-command state
+        speed = float(np.linalg.norm(post_obs.velocity))
         prev_slip = float(rec._rows["tool_slip"][-1]) if rec._rows.get("tool_slip") else 0.0
-        slip_rate = (obs.tool_slip - prev_slip) / dt
-        min_dist = float(np.linalg.norm(obs.position - obs.obstacle_center) - obs.obstacle_radius)
+        slip_rate = (post_obs.tool_slip - prev_slip) / dt
+        min_dist = float(np.linalg.norm(post_obs.position - post_obs.obstacle_center) - post_obs.obstacle_radius)
 
         rec.record(
-            t=obs.t if obs.t > 0.0 else step * dt,
-            ee_pos=np.asarray(obs.position, float),
-            ee_vel=np.asarray(obs.velocity, float),
+            t=post_obs.t if post_obs.t > 0.0 else step * dt,
+            ee_pos=np.asarray(post_obs.position, float),
+            ee_vel=np.asarray(post_obs.velocity, float),
             ee_speed=speed,
-            contact_force=obs.contact_force if np.isfinite(obs.contact_force) else 0.0,
-            tool_slip=obs.tool_slip,
+            contact_force=post_obs.contact_force if np.isfinite(post_obs.contact_force) else 0.0,
+            tool_slip=post_obs.tool_slip,
             tool_slip_rate=slip_rate,
-            tool_retained=float(obs.tool_slip < 1.0),
+            tool_retained=float(post_obs.tool_slip < 1.0),
             min_distance=min_dist,
-            human_in_zone=float(obs.human_in_zone),
+            human_in_zone=float(post_obs.human_in_zone),
             stopped=float(speed < 0.03),
-            in_contact=float(np.isfinite(obs.contact_force) and obs.contact_force > 0.0),
-            sensor_ok=float(obs.sensor_ok),
+            in_contact=float(np.isfinite(post_obs.contact_force) and post_obs.contact_force > 0.0),
+            sensor_ok=float(post_obs.sensor_ok),
             command_norm=float(np.linalg.norm(u)),
-            nail_progress=obs.nail_progress,
-            transporting=obs.transporting,
+            nail_progress=post_obs.nail_progress,
+            transporting=post_obs.transporting,
         )
 
         if monitor is not None:
             rec.record(latency_ms=monitor.mean_latency * 1e3)
 
         if extra_signals is not None:
-            rec.record(**extra_signals(obs, step))
+            rec.record(**extra_signals(post_obs, step))
 
         if runtime is not None and hasattr(runtime, "_modes") and runtime._modes:
             rec.record(rta_mode=float(runtime._modes[-1]))
@@ -180,7 +184,7 @@ def run_hardware_episode(
         if safe_stopped:
             break
 
-        if done_fn is not None and done_fn(obs, step):
+        if done_fn is not None and done_fn(post_obs, step):
             break
 
     # Flush remaining runtime signals
@@ -193,6 +197,17 @@ def run_hardware_episode(
         "n_steps": step + 1,
         "safe_stopped": safe_stopped,
     }
+    # Populate task-outcome fields that summarize_episode expects from traj.info.
+    # For MockRobot (and any driver wrapping a ContactToolEnv-compatible env),
+    # read ground-truth outcome directly from the underlying environment.
+    env = getattr(robot, "_env", None)
+    if env is not None:
+        info["success"] = bool(getattr(env, "success", False))
+        info["tool_dropped"] = bool(getattr(env, "tool_dropped", False))
+        info["completion_time"] = env.t if info["success"] else None
+        sc = getattr(env, "scenario", None)
+        if sc is not None:
+            info["scenario_id"] = str(getattr(sc, "scenario_id", ""))
     if monitor is not None:
         info["latency"] = monitor.summary()
     if runtime is not None:
