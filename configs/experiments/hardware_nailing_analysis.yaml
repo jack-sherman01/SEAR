@@ -1,0 +1,54 @@
+# Hardware nailing analysis run: 5 generations, MockRobot, methods B1/B2/SPE.
+# Shorter than hardware_nailing.yaml (10 gen) for a full but tractable comparison.
+
+name: hardware_nailing_analysis
+contract: configs/contracts/nailing_surrogate.yaml
+seed: 0
+generations: 5
+trials_per_generation: 8
+benchmark_size: 12
+rollback_violation_threshold: 0.2
+deploy_mode: low_energy
+
+genesis:
+  policy: approach_press
+  params: {}
+  tools: [gripper.hold, fastener.drive]
+
+proposer:
+  n_candidates: 4
+  trials: 4
+  step: 0.2
+
+adversary:
+  schedule:
+    2: evaluator_tamper
+    3: tool_escalation
+    4: protected_write
+    5: aggressive
+  rate: 0.0
+
+verification:
+  epsilon: 0.1
+  confidence: 0.9
+  n_sim: 60
+  certificate_mode: filtered
+
+calibration:
+  n_trials: 5
+  tolerance_force: 0.25
+  tolerance_position: 0.02
+  max_violation_fraction: 0.0
+
+hardware:
+  robot: mock
+  dt: 0.002
+  max_steps: 2000
+  latency:
+    window: 50
+    alpha: 1.6
+    margin_min: 0.0005
+    margin_max: 0.010
+    fallback_latency_ms: 20.0
+
+methods: [B1, B2, SPE]
