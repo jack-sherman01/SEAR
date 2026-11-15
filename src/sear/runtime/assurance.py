@@ -78,6 +78,7 @@ class RuntimeAssurance:
     # ----------------------------------------------------------------- API
     def reset(self) -> None:
         self._barriers: list[Barrier] | None = None
+        self._lam_warm: np.ndarray | None = None
         self._latched = False
         self._modes: list[int] = []
         self._intervention: list[float] = []
@@ -125,7 +126,14 @@ class RuntimeAssurance:
             e = np.eye(2)[i]
             rows += [e, -e]
             rhs += [-box, -box]
-        return solve_min_norm_qp(u_agent, np.eye(2), np.array(rows), np.array(rhs))
+        result = solve_min_norm_qp(u_agent, np.eye(2), np.array(rows), np.array(rhs),
+                                   lam_init=self._lam_warm)
+        # Cache dual solution for warm-starting the next step.
+        if self._lam_warm is None or self._lam_warm.shape != result.lam.shape:
+            self._lam_warm = result.lam.copy()
+        else:
+            self._lam_warm[:] = result.lam
+        return result
 
     def filter(self, obs: Observation, u_agent: np.ndarray) -> np.ndarray:
         cfg = self.config
