@@ -164,6 +164,8 @@ def run_hardware_episode(
             in_contact=float(np.isfinite(obs.contact_force) and obs.contact_force > 0.0),
             sensor_ok=float(obs.sensor_ok),
             command_norm=float(np.linalg.norm(u)),
+            nail_progress=obs.nail_progress,
+            transporting=obs.transporting,
         )
 
         if monitor is not None:

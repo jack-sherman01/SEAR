@@ -41,6 +41,8 @@ class Observation:
     sensor_ok: bool
     obstacle_center: np.ndarray
     obstacle_radius: float
+    nail_progress: float = 0.0   # task-progress fraction [0, 1]; 1.0 = success
+    transporting: float = 0.0    # 1.0 when above surface (not in contact)
 
 
 class ContactToolEnv:
@@ -169,4 +171,6 @@ class ContactToolEnv:
             sensor_ok=sensor_ok,
             obstacle_center=np.asarray(sc.obstacle_center, float),
             obstacle_radius=sc.obstacle_radius,
+            nail_progress=self.progress,
+            transporting=float(self._fn <= 0.0),
         )

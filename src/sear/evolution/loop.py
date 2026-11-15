@@ -80,6 +80,8 @@ class GenerationRecord:
     ground_truth_unsafe: bool | None = None
     ground_truth_unsafe_deployed: bool | None = None
     retrieved_scenarios: int = 0
+    hw_latency_stats: dict[str, Any] | None = None
+    hw_calibration_verdict: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return to_jsonable(asdict(self))
@@ -139,6 +141,24 @@ class EvolutionResult:
             "margin_retention": retention,
             "task_score": {"initial": first.task_score, "final": last.task_score},
             "ledger_valid": self.ledger_valid,
+            **self._hw_summary(),
+        }
+
+    def _hw_summary(self) -> dict[str, Any]:
+        lat_rows = [r.hw_latency_stats for r in self.records if r.hw_latency_stats]
+        if not lat_rows:
+            return {}
+        means = [r["mean_ms"] for r in lat_rows if r.get("mean_ms") is not None and math.isfinite(r["mean_ms"])]
+        maxes = [r["max_ms"] for r in lat_rows if r.get("max_ms") is not None and math.isfinite(r["max_ms"])]
+        total_fallbacks = sum(r.get("fallbacks", 0) for r in lat_rows)
+        verdicts = [r.hw_calibration_verdict for r in self.records if r.hw_calibration_verdict]
+        return {
+            "hw_latency": {
+                "mean_ms": float(np.mean(means)) if means else math.nan,
+                "max_ms": float(np.max(maxes)) if maxes else math.nan,
+                "total_fallbacks": total_fallbacks,
+            },
+            "hw_calibration_verdicts": verdicts,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -195,10 +215,12 @@ class EvolutionLoop:
         self._artifacts: dict[str, CandidateArtifact] = {}
 
     # ------------------------------------------------------------ evaluation
-    def _rollouts(self, state: SystemState, scenarios, mode: str) -> tuple[list, list[EpisodeOutcome]]:
+    def _rollouts(
+        self, state: SystemState, scenarios, mode: str
+    ) -> tuple[list, list[EpisodeOutcome], dict[str, Any] | None]:
         from sear.runtime.latency import LatencyMonitor
         policy = build_policy(state.policy)
-        trajs, outcomes = [], []
+        trajs, outcomes, lat_rows = [], [], []
         for sc in scenarios:
             rt = self.runtime_factory() if self.config.use_runtime_assurance else None
             if self.robot_factory is not None:
@@ -212,12 +234,25 @@ class EvolutionLoop:
                     max_steps=self.hardware_max_steps,
                     allowed_tools=state.tools.allowed,
                 )
+                if "latency" in traj.info:
+                    lat_rows.append(traj.info["latency"])
             else:
                 traj = run_episode(sc, policy, runtime=rt, allowed_tools=state.tools.allowed,
                                    operator_approvals=self.config.operator_approvals, mode=mode)
             trajs.append(traj)
             outcomes.append(summarize_episode(traj, self.oracle.evaluate(traj), self.oracle.contract))
-        return trajs, outcomes
+        lat_agg: dict[str, Any] | None = None
+        if lat_rows:
+            means = [r["mean_latency_ms"] for r in lat_rows if r.get("mean_latency_ms") is not None]
+            maxes = [r["max_latency_ms"] for r in lat_rows if r.get("max_latency_ms") is not None]
+            fallbacks = sum(1 for r in lat_rows if r.get("fallback_triggered"))
+            lat_agg = {
+                "mean_ms": float(np.mean(means)) if means else math.nan,
+                "max_ms": float(np.max(maxes)) if maxes else math.nan,
+                "fallbacks": fallbacks,
+                "n_episodes": len(lat_rows),
+            }
+        return trajs, outcomes, lat_agg
 
     def _physical_violation_rate(self, state: SystemState, with_runtime: bool = False) -> float:
         scenarios = list(self.benchmark["ood"]) + list(self.benchmark["adversarial"])
@@ -245,7 +280,7 @@ class EvolutionLoop:
             current = manager.current
             # 1. deployment trials
             trials = self._training_fn(cfg.trials_per_generation, seed=cfg.seed * 1000 + k)
-            trajs, outcomes = self._rollouts(current, trials, cfg.deploy_mode)
+            trajs, outcomes, hw_lat = self._rollouts(current, trials, cfg.deploy_mode)
             deployment = aggregate(outcomes, "deployment")
             rolled_back, latency = False, None
             # 2. evidence-based rollback
@@ -258,13 +293,14 @@ class EvolutionLoop:
                     f"deployment violation rate {deployment.violation_rate:.2f}", failing,
                     art.param_delta() if art else None, art.changed_components() if art else ())
                 rolled_back = True
-                trajs, outcomes = self._rollouts(current, trials, cfg.deploy_mode)
+                trajs, outcomes, hw_lat = self._rollouts(current, trials, cfg.deploy_mode)
                 deployment = aggregate(outcomes, "deployment")
             task_score = TaskEvaluator(current.evaluator).score(trajs)
             # 3. frozen benchmark (not visible to the agent)
             suites = {name: aggregate(self._rollouts(current, self.benchmark[name], "simulation")[1], name)
                       for name in SUITE_NAMES}
-            record = GenerationRecord(k, current.digest, task_score, deployment, suites, rolled_back, latency)
+            record = GenerationRecord(k, current.digest, task_score, deployment, suites, rolled_back, latency,
+                                      hw_latency_stats=hw_lat)
             result.records.append(record)
             if k == cfg.generations:
                 break
@@ -304,6 +340,11 @@ class EvolutionLoop:
                 record.decision = evidence.decision.value
                 record.verification_s = evidence.elapsed_s
                 record.evidence_digest = evidence.digest
+                try:
+                    hw_check = evidence.check("HardwareCalibrationCheck")
+                    record.hw_calibration_verdict = hw_check.verdict.value
+                except KeyError:
+                    pass
                 signature = evidence.sign(self.verifier_key) if self.verifier_key else None
                 payload.update(evidence=evidence.to_dict(), signature=signature,
                                failing_scenarios=evidence.failing_scenarios())
