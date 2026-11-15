@@ -173,6 +173,43 @@ def text_report(results: dict, run_dir: Path) -> Path:
         lat_s = f"{lat:.2f}" if not math.isnan(lat) else "  n/a"
         lines.append(f"{method:<8} {far_r_s:>9} {far_d_s:>9} {dv:>9} {ids:>11.2f} {lat_s:>11}")
 
+    # per-generation latency table
+    lines.append("")
+    lines.append("Per-generation latency (deployment trials)")
+    lines.append("-" * 60)
+    lines.append(f"{'Method':<6} {'Gen':>4} {'Mean ms':>9} {'Max ms':>9} {'Fallbacks':>10}")
+    for method in METHOD_ORDER:
+        if method not in results:
+            continue
+        for rec in results[method]["records"]:
+            lat = rec.get("hw_latency_stats") or {}
+            if not lat:
+                continue
+            lines.append(f"{method:<6} {rec['generation']:>4} {_safe(lat.get('mean_ms')):>9.2f} "
+                         f"{_safe(lat.get('max_ms')):>9.2f} {lat.get('fallbacks',0):>10}")
+
+    # diagnosis
+    lines.append("")
+    lines.append("Diagnosis")
+    lines.append("-" * 60)
+    for method in METHOD_ORDER:
+        if method not in results:
+            continue
+        s = results[method]["summary"]
+        hw = s.get("hw_latency") or {}
+        mean_lat = _safe(hw.get("mean_ms"))
+        fallbacks = hw.get("total_fallbacks", 0)
+        ids = _safe(s.get("final", {}).get("in_distribution", {}).get("success_rate"))
+        far = _safe(s.get("false_acceptance_rate"))
+        if math.isnan(mean_lat):
+            lines.append(f"{method}: no hardware latency data (sim path used)")
+        elif mean_lat > 20.0:
+            lines.append(f"{method}: CBF-QP latency {mean_lat:.1f}ms > 20ms threshold → "
+                         f"{fallbacks} safe-stops → task completion impossible (needs faster solver)")
+        elif fallbacks == 0 and not math.isnan(ids):
+            lines.append(f"{method}: latency {mean_lat:.3f}ms well under threshold, "
+                         f"task success={ids:.2f}, FAR={far:.3f}")
+
     out = run_dir / "hw_analysis.txt"
     out.write_text("\n".join(lines) + "\n")
     return out
