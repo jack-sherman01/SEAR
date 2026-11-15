@@ -81,6 +81,10 @@ class MockRobot(RobotInterface):
     def mode(self) -> str:
         return self._mode
 
+    def episode_done(self, obs: Observation, step: int) -> bool:
+        """True when the underlying sim env has reached a terminal state."""
+        return self._env.done
+
     def reset(self) -> None:
         self._env.reset()
         self._obs = self._env._observe()

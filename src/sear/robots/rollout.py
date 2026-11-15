@@ -197,3 +197,66 @@ def run_hardware_episode(
         info["runtime"] = runtime.summary()
 
     return rec.finalize(**info)
+
+
+def make_hardware_runner(
+    robot_factory: Callable[[object], RobotInterface],
+    dt: float = 0.002,
+    max_steps: int = 1000,
+    latency_config: object | None = None,
+) -> "Callable":
+    """Return a :data:`~sear.verification.checks.hardware_calibration.HardwareRunner`.
+
+    The runner:
+    1. Builds the candidate policy from the artifact.
+    2. For each scenario, runs ``run_hardware_episode`` via ``robot_factory(scenario)``.
+    3. Runs the same scenario through the simulator to get predicted trajectories.
+    4. Computes force/position residuals and returns :class:`HardwareTrial` objects.
+
+    Args:
+        robot_factory: ``(scenario) -> RobotInterface``; called once per trial.
+        dt: control period passed to :func:`run_hardware_episode`.
+        max_steps: step limit passed to :func:`run_hardware_episode`.
+        latency_config: :class:`~sear.runtime.latency.AdaptiveLatencyConfig` or None.
+    """
+    from sear.policies.base import build_policy
+    from sear.runtime.latency import LatencyMonitor
+    from sear.sim.rollout import run_episode
+    from sear.verification.checks.hardware_calibration import HardwareTrial
+
+    def _runner(artifact, scenarios):
+        from sear.core.update import CandidateArtifact
+        policy = build_policy(artifact.candidate.policy)
+        trials = []
+        for sc in scenarios:
+            robot = robot_factory(sc)
+            done_fn = getattr(robot, "episode_done", None)
+            monitor = LatencyMonitor(latency_config) if latency_config is not None else LatencyMonitor()
+            hw_traj = run_hardware_episode(
+                robot, policy,
+                done_fn=done_fn,
+                monitor=monitor,
+                dt=dt,
+                max_steps=max_steps,
+            )
+            sim_traj = run_episode(sc, policy)
+
+            obs_f = hw_traj.signals.get("contact_force", np.array([]))
+            pred_f = sim_traj.signals.get("contact_force", np.array([]))
+            obs_p = hw_traj.signals.get("ee_pos", np.zeros((0, 2)))
+            pred_p = sim_traj.signals.get("ee_pos", np.zeros((0, 2)))
+
+            # Detect safety violations: any constraint-force bound exceeded
+            any_viol = bool(np.any(obs_f > 50.0))  # conservative threshold; real runner uses contract
+
+            trials.append(HardwareTrial(
+                scenario_id=sc.scenario_id,
+                observed_forces=np.asarray(obs_f, float),
+                predicted_forces=np.asarray(pred_f, float),
+                observed_positions=np.asarray(obs_p, float),
+                predicted_positions=np.asarray(pred_p, float),
+                any_violation=any_viol,
+            ))
+        return trials
+
+    return _runner

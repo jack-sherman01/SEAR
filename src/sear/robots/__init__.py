@@ -3,7 +3,7 @@
 from sear.robots.base import RobotInterface, SafetyInterlock
 from sear.robots.franka import FrankaRobot, FrankaSafetyInterlock
 from sear.robots.mock import MockRobot, MockSafetyInterlock
-from sear.robots.rollout import run_hardware_episode
+from sear.robots.rollout import make_hardware_runner, run_hardware_episode
 from sear.robots.ur5e import UR5eRobot, UR5eSafetyInterlock
 
 __all__ = [
@@ -15,5 +15,6 @@ __all__ = [
     "SafetyInterlock",
     "UR5eRobot",
     "UR5eSafetyInterlock",
+    "make_hardware_runner",
     "run_hardware_episode",
 ]

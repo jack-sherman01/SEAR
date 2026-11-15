@@ -60,8 +60,8 @@ calibration:
 
 # Hardware-specific control loop parameters (used by run_hardware_episode)
 hardware:
-  robot: franka            # "franka" | "mock"  ("mock" uses MockRobot for testing)
-  robot_ip: "172.16.0.2"  # Franka Control Interface IP; ignored when robot=mock
+  robot: mock              # "mock" (default, uses MockRobot) | "franka" (real hardware)
+  robot_ip: "172.16.0.2"  # Franka Control Interface IP; used only when robot=franka
   dt: 0.002               # control period (s) — 500 Hz
   max_steps: 2000          # hard episode step limit (= 4 s at 500 Hz)
 

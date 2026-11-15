@@ -88,10 +88,78 @@ def build_loop(method: str, cfg: Mapping[str, Any], oracle: SafetyOracle, key: b
     adv = cfg.get("adversary", {})
     proposer = AdversarialProposer(base, schedule=adv.get("schedule"), rate=adv.get("rate", 0.0))
 
+    # hardware section (optional — absent in pure-simulation configs)
+    hw = cfg.get("hardware", {})
+    robot_kind = hw.get("robot", None)  # "mock" | "franka" | "ur5e" | None
+    robot_factory = None
+    latency_config = None
+    hardware_dt = float(hw.get("dt", 0.002))
+    hardware_max_steps = int(hw.get("max_steps", 1000))
+
+    if robot_kind is not None:
+        from sear.runtime.latency import AdaptiveLatencyConfig
+        lat = hw.get("latency", {})
+        latency_config = AdaptiveLatencyConfig(
+            window=int(lat.get("window", 50)),
+            alpha=float(lat.get("alpha", 1.6)),
+            margin_min=float(lat.get("margin_min", 0.0005)),
+            margin_max=float(lat.get("margin_max", 0.010)),
+            fallback_latency_s=float(lat.get("fallback_latency_ms", 20.0)) / 1e3,
+        )
+        if robot_kind == "mock":
+            from sear.robots.mock import MockRobot
+            task = cfg.get("task", "nailing")
+            if task == "peg_insertion":
+                from sear.sim.peg_env import PegEnv
+                from sear.sim.scenario import Scenario as _Sc
+                def robot_factory(sc, _PegEnv=PegEnv):  # noqa: E731
+                    r = MockRobot.__new__(MockRobot)
+                    from sear.robots.mock import MockSafetyInterlock
+                    import numpy as _np
+                    r._env = _PegEnv(sc)
+                    r._env.reset()
+                    r._dt = hardware_dt
+                    r._obs = r._env._observe()
+                    r._stopped = False
+                    r._mode = "normal"
+                    r.interlock = MockSafetyInterlock()
+                    r.commanded = []
+                    return r
+            else:
+                robot_factory = lambda sc: MockRobot(sc, dt=hardware_dt)
+        elif robot_kind == "franka":
+            from sear.robots.franka import FrankaRobot
+            ip = hw.get("robot_ip", "127.0.0.1")
+            robot_factory = lambda sc, _ip=ip: FrankaRobot(robot_ip=_ip, dt=hardware_dt)
+        elif robot_kind == "ur5e":
+            from sear.robots.ur5e import UR5eRobot
+            ip = hw.get("robot_ip", "127.0.0.1")
+            robot_factory = lambda sc, _ip=ip: UR5eRobot(robot_ip=_ip, dt=hardware_dt)
+        else:
+            raise ValueError(f"unknown hardware.robot {robot_kind!r}; choose from mock, franka, ur5e")
+
+    # calibration section → Tier 3.5 hardware_runner
+    cal = cfg.get("calibration", {})
+    hardware_runner = None
+    if robot_factory is not None and cal:
+        from sear.robots.rollout import make_hardware_runner
+        from sear.verification.checks.hardware_calibration import HardwareRunnerConfig
+        cal_cfg = HardwareRunnerConfig(
+            n_trials=int(cal.get("n_trials", 5)),
+            tolerance_force=float(cal.get("tolerance_force", 0.25)),
+            tolerance_position=float(cal.get("tolerance_position", 0.02)),
+            max_violation_fraction=float(cal.get("max_violation_fraction", 0.0)),
+        )
+        hardware_runner = make_hardware_runner(
+            robot_factory, dt=hardware_dt, max_steps=hardware_max_steps,
+            latency_config=latency_config,
+        )
+
     v = cfg.get("verification", {})
     pipeline = default_pipeline(statistical_with_runtime=evo.use_runtime_assurance, epsilon=v.get("epsilon", 0.1),
                                 confidence=v.get("confidence", 0.9), n_sim=v.get("n_sim", 60),
-                                certificate_mode=v.get("certificate_mode", "filtered"))
+                                certificate_mode=v.get("certificate_mode", "filtered"),
+                                hardware_runner=hardware_runner)
     domain = domain_from_contract(contract)
     rta_cfg = RuntimeAssuranceConfig(monitor=RuntimeMonitor(domain=domain))
 
@@ -100,6 +168,10 @@ def build_loop(method: str, cfg: Mapping[str, Any], oracle: SafetyOracle, key: b
         method, make_genesis(cfg), proposer, oracle, evo,
         pipeline=pipeline if evo.use_verification else None,
         runtime_factory=(lambda: RuntimeAssurance(contract, rta_cfg)) if evo.use_runtime_assurance else None,
+        robot_factory=robot_factory,
+        hardware_dt=hardware_dt,
+        hardware_max_steps=hardware_max_steps,
+        latency_config=latency_config,
         ledger=EvidenceLedger(run_dir / "ledger.jsonl" if run_dir else None),
         store=VersionStore(run_dir / "states" if run_dir else None),
         verifier_key=key,

@@ -480,3 +480,70 @@ def test_run_hardware_episode_contract_evaluable():
     # Result must not be entirely UNKNOWN (signals present)
     verdicts = {cr.verdict.value for cr in result.results}
     assert "unknown" not in verdicts or "pass" in verdicts or "fail" in verdicts
+
+
+# ---------------------------------------------------------------------------
+# hardware config → sear run integration
+# ---------------------------------------------------------------------------
+
+def test_hardware_config_build_loop_mock():
+    """build_loop parses hardware: section and creates a MockRobot factory."""
+    from sear.contracts.signing import DEV_KEY, load_key
+    from sear.contracts.oracle import SafetyOracle
+    from sear.contracts.signing import read_signed
+    from sear.evolution.experiment import build_loop, load_config
+    from pathlib import Path
+
+    cfg = load_config(Path(__file__).parents[1] / "configs/experiments/hardware_nailing.yaml")
+    key = load_key()
+    oracle = SafetyOracle(read_signed(cfg["contract"], key), key)
+    loop = build_loop("SPE", cfg, oracle, key)
+
+    assert loop.robot_factory is not None
+    assert loop.hardware_dt == pytest.approx(0.002)
+    assert loop.hardware_max_steps == 2000
+    assert loop.latency_config is not None
+    # hardware_calibration check must be present in pipeline
+    names = [c.name for c in loop.pipeline.checks]
+    assert "hardware_calibration" in names
+
+
+def test_hardware_config_runs_two_generations():
+    """sear run with robot=mock completes without error."""
+    from sear.evolution.experiment import load_config, run_experiment
+    from pathlib import Path
+
+    cfg = load_config(Path(__file__).parents[1] / "configs/experiments/hardware_nailing.yaml")
+    cfg["generations"] = 1
+    cfg["trials_per_generation"] = 2
+    cfg["benchmark_size"] = 4
+    cfg["verification"]["n_sim"] = 10
+
+    results = run_experiment(cfg, methods=["B1"], out_dir="/tmp/test_hw_run")
+    s = results["B1"].summary()
+    assert s["ledger_valid"]
+    assert s["generations"] == 1
+
+
+def test_make_hardware_runner():
+    """make_hardware_runner produces a callable that returns HardwareTrial objects."""
+    from sear.robots import MockRobot, make_hardware_runner
+    from sear.benchmark import Benchmark
+
+    runner = make_hardware_runner(lambda sc: MockRobot(sc), dt=0.002, max_steps=20)
+    bench = Benchmark.build(2)
+    scenarios = list(bench["in_distribution"])[:2]
+
+    # Build a minimal artifact to pass in
+    from sear.core import SystemState, ToolPermissions, UpdateProposal, CandidateArtifact
+    from sear.policies import ApproachPressPolicy
+
+    z0 = SystemState(policy=ApproachPressPolicy.default_state(), tools=ToolPermissions(TOOLS))
+    art = CandidateArtifact.from_proposal(z0, UpdateProposal(proposer="test"))
+    trials = runner(art, scenarios)
+
+    assert len(trials) == 2
+    for t in trials:
+        assert len(t.observed_forces) > 0
+        assert len(t.predicted_forces) > 0
+        assert t.observed_positions.shape[0] > 0

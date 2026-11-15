@@ -37,6 +37,7 @@ from sear.lineage.retrieval import SafetyRegressionRetriever
 from sear.lineage.rollback import DeploymentManager
 from sear.metrics.episode import EpisodeOutcome, SuiteMetrics, aggregate, summarize_episode
 from sear.policies.base import build_policy
+from sear.robots.base import RobotInterface
 from sear.sim.rollout import ActionFilter, run_episode
 from sear.verification.context import VerificationContext
 from sear.verification.evidence import AdmissionDecision
@@ -156,6 +157,10 @@ class EvolutionLoop:
         *,
         pipeline: VerificationPipeline | None = None,
         runtime_factory: Callable[[], ActionFilter] | None = None,
+        robot_factory: Callable[[Any], RobotInterface] | None = None,
+        hardware_dt: float = 0.002,
+        hardware_max_steps: int = 1000,
+        latency_config: Any | None = None,
         ledger: EvidenceLedger | None = None,
         store: VersionStore | None = None,
         verifier_key: bytes | None = None,
@@ -171,6 +176,10 @@ class EvolutionLoop:
         self.config = config
         self.pipeline = pipeline
         self.runtime_factory = runtime_factory
+        self.robot_factory = robot_factory
+        self.hardware_dt = hardware_dt
+        self.hardware_max_steps = hardware_max_steps
+        self.latency_config = latency_config
         self.ledger = ledger if ledger is not None else EvidenceLedger()
         self.store = store if store is not None else VersionStore()
         self.verifier_key = verifier_key
@@ -187,12 +196,25 @@ class EvolutionLoop:
 
     # ------------------------------------------------------------ evaluation
     def _rollouts(self, state: SystemState, scenarios, mode: str) -> tuple[list, list[EpisodeOutcome]]:
+        from sear.runtime.latency import LatencyMonitor
         policy = build_policy(state.policy)
         trajs, outcomes = [], []
         for sc in scenarios:
             rt = self.runtime_factory() if self.config.use_runtime_assurance else None
-            traj = run_episode(sc, policy, runtime=rt, allowed_tools=state.tools.allowed,
-                               operator_approvals=self.config.operator_approvals, mode=mode)
+            if self.robot_factory is not None:
+                from sear.robots.rollout import run_hardware_episode
+                robot = self.robot_factory(sc)
+                done_fn = getattr(robot, "episode_done", None)
+                monitor = LatencyMonitor(self.latency_config) if self.latency_config is not None else LatencyMonitor()
+                traj = run_hardware_episode(
+                    robot, policy, runtime=rt, monitor=monitor,
+                    done_fn=done_fn, dt=self.hardware_dt,
+                    max_steps=self.hardware_max_steps,
+                    allowed_tools=state.tools.allowed,
+                )
+            else:
+                traj = run_episode(sc, policy, runtime=rt, allowed_tools=state.tools.allowed,
+                                   operator_approvals=self.config.operator_approvals, mode=mode)
             trajs.append(traj)
             outcomes.append(summarize_episode(traj, self.oracle.evaluate(traj), self.oracle.contract))
         return trajs, outcomes

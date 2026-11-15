@@ -59,8 +59,8 @@ calibration:
 
 # Hardware-specific control loop parameters (used by run_hardware_episode)
 hardware:
-  robot: ur5e              # "ur5e" | "mock"
-  robot_ip: "192.168.1.100"  # UR5e controller IP; ignored when robot=mock
+  robot: mock              # "mock" (default, uses MockRobot) | "ur5e" (real hardware)
+  robot_ip: "192.168.1.100"  # UR5e controller IP; used only when robot=ur5e
   dt: 0.002               # control period (s) — 500 Hz (UR5e RTDE supports this)
   max_steps: 3000          # hard episode step limit (= 6 s at 500 Hz)
                            # peg insertion typically completes in 2–4 s
