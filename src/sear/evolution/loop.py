@@ -22,7 +22,8 @@ from typing import Any, Callable
 
 import numpy as np
 
-from sear.benchmark.suites import SUITE_NAMES, Benchmark, peg_training_scenarios, training_scenarios
+from sear.benchmark.suites import (SUITE_NAMES, Benchmark, peg_training_scenarios,
+                                   training_scenarios, transport_training_scenarios)
 from sear.contracts.constraints import ConstraintCategory
 from sear.contracts.oracle import SafetyOracle
 from sear.runtime.assurance import domain_from_contract
@@ -204,7 +205,12 @@ class EvolutionLoop:
         self.store = store if store is not None else VersionStore()
         self.verifier_key = verifier_key
         task = getattr(config, "task", "nailing")
-        self._training_fn = peg_training_scenarios if task == "peg_insertion" else training_scenarios
+        if task == "peg_insertion":
+            self._training_fn = peg_training_scenarios
+        elif task == "transport":
+            self._training_fn = transport_training_scenarios
+        else:
+            self._training_fn = training_scenarios
         self.benchmark = Benchmark.build(config.benchmark_size, seed=config.seed, task=task)
         self.ctx = VerificationContext(
             oracle=oracle, benchmark=self.benchmark, pinned_benchmark=self.benchmark.digests(),

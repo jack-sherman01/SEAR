@@ -28,11 +28,14 @@ class DynamicsParams:
     force_noise_std: float = 0.3  # F/T sensor noise [N]
     pos_noise_std: float = 0.0005  # state-estimation noise [m]
     vel_noise_std: float = 0.002  # [m/s]
-    # Peg-insertion specific (ignored by ContactToolEnv)
+    # Peg-insertion specific (ignored by other tasks)
     peg_radius: float = 0.010    # peg radius [m]
     hole_radius: float = 0.012   # hole radius at work surface [m]
     target_depth: float = 0.040  # required insertion depth [m]
     wall_stiffness: float = 8000.0  # hole-wall spring constant [N/m]
+    # Transport specific (ignored by other tasks)
+    inertial_slip_threshold: float = 0.0  # m/s²; acceleration below this causes no slip
+    payload_inertia_gain: float = 0.0     # slip/s per m/s² of excess acceleration
 
 
 @dataclass(frozen=True)

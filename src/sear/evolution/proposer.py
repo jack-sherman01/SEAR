@@ -20,6 +20,7 @@ from typing import Any, Callable, Mapping, Sequence
 import numpy as np
 
 from sear.benchmark.suites import training_scenarios
+from typing import Callable as _Callable
 from sear.core.state import EvaluatorSpec, SystemState
 from sear.core.trajectory import Trajectory
 from sear.core.update import UpdateProposal
@@ -67,11 +68,18 @@ def _clip(params: dict[str, float], kind: str) -> dict[str, float]:
 class GreedyTuningProposer(Proposer):
     name = "greedy_agent"
 
+    _DEFAULT_TUNABLE = (
+        "approach_speed", "press_force", "hover_height",   # nailing
+        "carry_speed", "carry_height", "grip_force",        # transport
+        "vel_gain", "pos_gain",                             # shared
+    )
+
     def __init__(self, n_candidates: int = 6, trials: int = 4, step: float = 0.3,
-                 tunable: Sequence[str] = ("approach_speed", "press_force", "hover_height", "vel_gain", "pos_gain"),
+                 tunable: Sequence[str] = _DEFAULT_TUNABLE,
                  cost_fn: Callable[[Trajectory], float] | None = None, lagrangian: bool = False,
                  lagrange_lr: float = 2.0, cost_budget: float = 0.0, adapt_step: bool = True,
-                 min_step: float = 0.03) -> None:
+                 min_step: float = 0.03,
+                 training_fn: _Callable[..., list] | None = None) -> None:
         if lagrangian and cost_fn is None:
             raise ValueError("lagrangian proposer needs a cost_fn")
         self.n_candidates = n_candidates
@@ -86,6 +94,7 @@ class GreedyTuningProposer(Proposer):
         self.lagrange_lr = lagrange_lr
         self.cost_budget = cost_budget
         self.multiplier = 0.0
+        self._training_fn = training_fn if training_fn is not None else training_scenarios
         if lagrangian:
             self.name = "safe_rl_agent"
 
@@ -111,7 +120,7 @@ class GreedyTuningProposer(Proposer):
         state = fb.state
         kind = state.policy.kind
         base = dict(state.policy.params)
-        scenarios = training_scenarios(self.trials, seed=100_000 + 97 * fb.generation + int(rng.integers(1000)))
+        scenarios = self._training_fn(self.trials, seed=100_000 + 97 * fb.generation + int(rng.integers(1000)))
         tunable = [k for k in self.tunable if k in base]
         candidates = []
         for _ in range(self.n_candidates):

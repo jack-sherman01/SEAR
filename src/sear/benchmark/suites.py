@@ -225,6 +225,107 @@ def peg_training_scenarios(n: int, seed: int) -> list[Scenario]:
     return peg_in_distribution(n, seed=_TRAIN_SEED_BASE + seed, prefix=f"peg-train{seed}")
 
 
+# ============================================================ transport / carry
+_TRANSPORT_ADVERSARIAL_KINDS = ("inertial_slip", "long_carry", "unstable_grip", "human", "sensor", "evaluator_error")
+
+
+def _transport_nominal(rng: np.random.Generator, sid: str, seed: int, **overrides) -> Scenario:
+    params = DynamicsParams(
+        surface_stiffness=float(rng.uniform(4500, 5500)),
+        payload=float(rng.uniform(0.4, 0.6)),
+        surface_friction=float(rng.uniform(0.3, 0.5)),
+        inertial_slip_threshold=float(rng.uniform(0.8, 1.2)),
+        payload_inertia_gain=float(rng.uniform(0.8, 1.2)),
+    )
+    sc = Scenario(
+        scenario_id=sid,
+        seed=seed,
+        task_type="transport",
+        params=params,
+        start=(float(rng.uniform(-0.10, 0.00)), float(rng.uniform(0.07, 0.10))),
+        target_x=float(rng.uniform(0.25, 0.40)),
+        obstacle_center=(float(rng.uniform(0.05, 0.10)), float(rng.uniform(0.12, 0.18))),
+        obstacle_radius=0.02,
+        horizon=7.0,
+        tags=("nominal", "transport"),
+    )
+    return replace(sc, **overrides)
+
+
+def transport_in_distribution(n: int, seed: int = 0, prefix: str = "tr-id") -> list[Scenario]:
+    rng = np.random.default_rng(seed)
+    return [_transport_nominal(rng, f"{prefix}-{i:03d}", seed * 10_000 + i) for i in range(n)]
+
+
+def transport_held_out(n: int, seed: int = 0) -> list[Scenario]:
+    rng = np.random.default_rng(seed + 1)
+    out = []
+    for i in range(n):
+        sc = _transport_nominal(rng, f"tr-ho-{i:03d}", seed * 10_000 + 2_000 + i)
+        target = float(rng.choice([rng.uniform(0.42, 0.55), rng.uniform(0.10, 0.18)]))
+        out.append(replace(sc, target_x=target,
+                           params=replace(sc.params, payload=float(rng.uniform(0.8, 1.2))),
+                           tags=("held_out", "transport")))
+    return out
+
+
+def transport_ood(n: int, seed: int = 0) -> list[Scenario]:
+    rng = np.random.default_rng(seed + 2)
+    out = []
+    for i in range(n):
+        sc = _transport_nominal(rng, f"tr-ood-{i:03d}", seed * 10_000 + 4_000 + i)
+        params = replace(
+            sc.params,
+            surface_friction=float(rng.uniform(0.1, 0.8)),
+            inertial_slip_threshold=float(rng.uniform(0.4, 0.8)),
+            payload_inertia_gain=float(rng.uniform(1.0, 1.5)),
+            latency_steps=int(rng.integers(1, 4)),
+            disturbance_std=float(rng.uniform(0.5, 2.0)),
+            payload=float(rng.uniform(0.6, 1.0)),
+        )
+        out.append(replace(sc, params=params, tags=("ood", "transport")))
+    return out
+
+
+def transport_adversarial(n: int, seed: int = 0) -> list[Scenario]:
+    rng = np.random.default_rng(seed + 3)
+    out = []
+    for i in range(n):
+        kind = _TRANSPORT_ADVERSARIAL_KINDS[i % len(_TRANSPORT_ADVERSARIAL_KINDS)]
+        sc = _transport_nominal(rng, f"tr-adv-{kind}-{i:03d}", seed * 10_000 + 6_000 + i)
+        p = sc.params
+        if kind == "inertial_slip":     # low threshold + high gain → slip at any speed
+            sc = replace(sc, params=replace(p, inertial_slip_threshold=0.3,
+                                            payload_inertia_gain=float(rng.uniform(1.5, 2.0))))
+        elif kind == "long_carry":      # far target → longer transit → more accumulated slip
+            sc = replace(sc, target_x=float(rng.uniform(0.50, 0.65)),
+                         start=(float(rng.uniform(-0.15, -0.08)), float(rng.uniform(0.07, 0.10))))
+        elif kind == "unstable_grip":   # weak grip + heavy payload
+            sc = replace(sc, params=replace(p, grip_force=float(rng.uniform(18, 24)), payload=1.2))
+        elif kind == "human":           # human enters during transit → hard brake → inertial slip
+            enter = float(rng.uniform(0.3, 1.5))
+            sc = replace(sc, human_enter_t=enter, human_exit_t=enter + float(rng.uniform(0.4, 1.0)))
+        elif kind == "sensor":
+            sc = replace(sc, sensor_dropout_t=float(rng.uniform(1.0, 3.0)))
+        elif kind == "evaluator_error": # agent sees slip as harmless noise
+            sc = replace(sc, params=replace(p, inertial_slip_threshold=0.5, payload_inertia_gain=1.6))
+        out.append(replace(sc, tags=("adversarial", kind, "transport")))
+    return out
+
+
+_TRANSPORT_BUILDERS = {
+    "in_distribution": transport_in_distribution,
+    "held_out": transport_held_out,
+    "ood": transport_ood,
+    "adversarial": transport_adversarial,
+}
+
+
+def transport_training_scenarios(n: int, seed: int) -> list[Scenario]:
+    """Fresh nominal transport scenarios for agent trials (disjoint from test seeds)."""
+    return transport_in_distribution(n, seed=_TRAIN_SEED_BASE + seed, prefix=f"tr-train{seed}")
+
+
 @dataclass(frozen=True)
 class ScenarioSuite:
     name: str
@@ -248,7 +349,8 @@ class Benchmark:
     @classmethod
     def build(cls, n_per_suite: int = 12, seed: int = 0, task: str = "nailing") -> "Benchmark":
         base = _TEST_SEED_BASE + seed
-        builders = _PEG_BUILDERS if task == "peg_insertion" else _BUILDERS
+        builders = (_PEG_BUILDERS if task == "peg_insertion"
+                    else _TRANSPORT_BUILDERS if task == "transport" else _BUILDERS)
         return cls({name: ScenarioSuite(name, tuple(builders[name](n_per_suite, base))) for name in SUITE_NAMES})
 
     def __getitem__(self, name: str) -> ScenarioSuite:

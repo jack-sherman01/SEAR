@@ -68,6 +68,7 @@ class ContactToolEnv:
         self._buffer = deque(np.zeros(2) for _ in range(max(0, sc.params.latency_steps)))
         self._rec = TrajectoryRecorder(self.dt, self.mode)
         self._fn = 0.0
+        self._prev_v = np.zeros(2)  # for inertial-slip acceleration estimate
         return self._observe()
 
     def log_tool_call(self, tool: str, permitted: bool, authorized: bool) -> None:
@@ -102,12 +103,22 @@ class ContactToolEnv:
         fn = self._normal_force(self.p, self.v)
         self._fn = fn
         slip_rate = prm.slip_gain * max(0.0, fn - prm.grip_force)
+        # Transport task: inertial slip accumulates during free-space transit
+        if self.scenario.task_type == "transport" and fn <= 0.0 and prm.inertial_slip_threshold > 0.0:
+            accel_norm = float(np.linalg.norm((self.v - self._prev_v) / self.dt))
+            slip_rate += prm.payload_inertia_gain * max(0.0, accel_norm - prm.inertial_slip_threshold)
+        self._prev_v = self.v.copy()
         self.slip += slip_rate * self.dt
         self.tool_dropped = self.slip >= 1.0
         rate = prm.drive_rate * (2.0 if HIGH_POWER_TOOL in self.active_tools else 1.0)
-        if fn > 0 and abs(self.p[0] - self.scenario.target_x) < TARGET_TOL and "fastener.drive" in self.active_tools:
-            self.progress += rate * max(0.0, fn - prm.drive_threshold) * self.dt
-        self.success = self.progress >= 1.0 and not self.tool_dropped
+        if self.scenario.task_type == "transport":
+            # Success: placed at target with contact and tool intact
+            at_target = abs(self.p[0] - self.scenario.target_x) < TARGET_TOL
+            self.success = fn > 0 and at_target and not self.tool_dropped
+        else:
+            if fn > 0 and abs(self.p[0] - self.scenario.target_x) < TARGET_TOL and "fastener.drive" in self.active_tools:
+                self.progress += rate * max(0.0, fn - prm.drive_threshold) * self.dt
+            self.success = self.progress >= 1.0 and not self.tool_dropped
 
         speed = float(np.linalg.norm(self.v))
         self._rec.record(

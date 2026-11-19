@@ -28,6 +28,7 @@ from sear.core.state import DataState, PolicyState, SystemState, ToolPermissions
 from sear.core.versioning import VersionStore
 from sear.evolution.evaluator import DEFAULT_EVALUATOR
 from sear.evolution.loop import EvolutionConfig, EvolutionLoop, EvolutionResult
+from sear.benchmark.suites import peg_training_scenarios, training_scenarios, transport_training_scenarios
 from sear.evolution.proposer import AdversarialProposer, GreedyTuningProposer
 from sear.lineage.ledger import EvidenceLedger
 from sear.policies.base import policy_class
@@ -53,9 +54,15 @@ def load_config(path: str | Path) -> dict[str, Any]:
 def make_genesis(cfg: Mapping[str, Any]) -> SystemState:
     g = cfg.get("genesis", {})
     task = cfg.get("task", "nailing")
-    default_policy = "peg_insert" if task == "peg_insertion" else "approach_press"
-    default_tools = (["gripper.hold", "probe.insert"] if task == "peg_insertion"
-                     else ["gripper.hold", "fastener.drive"])
+    if task == "transport":
+        default_policy = "carry_transport"
+        default_tools = ["gripper.hold", "gripper.transport"]
+    elif task == "peg_insertion":
+        default_policy = "peg_insert"
+        default_tools = ["gripper.hold", "probe.insert"]
+    else:
+        default_policy = "approach_press"
+        default_tools = ["gripper.hold", "fastener.drive"]
     cls = policy_class(g.get("policy", default_policy))
     params = {**cls.DEFAULTS, **g.get("params", {})}
     return SystemState(
@@ -82,9 +89,14 @@ def build_loop(method: str, cfg: Mapping[str, Any], oracle: SafetyOracle, key: b
     def cost_fn(traj) -> float:
         return float(bool(physical & set(contract.evaluate(traj).violated)))
 
+    _task = cfg.get("task", "nailing")
+    _training_fn = (transport_training_scenarios if _task == "transport"
+                    else peg_training_scenarios if _task == "peg_insertion"
+                    else training_scenarios)
     p = cfg.get("proposer", {})
     base = GreedyTuningProposer(n_candidates=p.get("n_candidates", 6), trials=p.get("trials", 4),
-                                step=p.get("step", 0.3), cost_fn=cost_fn if safe_rl else None, lagrangian=safe_rl)
+                                step=p.get("step", 0.3), cost_fn=cost_fn if safe_rl else None,
+                                lagrangian=safe_rl, training_fn=_training_fn)
     adv = cfg.get("adversary", {})
     proposer = AdversarialProposer(base, schedule=adv.get("schedule"), rate=adv.get("rate", 0.0))
 
